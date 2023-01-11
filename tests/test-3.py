@@ -64,7 +64,8 @@ if __name__ == '__main__':
         # https://doi.org/10.1109/ICUAS54217.2022.9836215
 
         # eulerlagrange method
-        # f1 = 
+        # f1 = k * w
+        # or T1 = k * wi * wi
         # uf = f1 + f2 + f3 + f4
         # l = arm length
         # Tp = l * (f4 − f2)
@@ -79,3 +80,10 @@ if __name__ == '__main__':
         # d = drag_coeff / thrust_coeff
         # Tr = k * d(f1 − f2 + f3 − f4)
 
+        # EL method
+        # k is constant for now
+        kT = 1
+
+        # Wolfram
+        # [A,B,C,D] = [[l(a+b+c+d)], [l(d-b)],[l(c-a)],[m(a-b+c-d)]]
+        # {{T},{Tp},{Tq},{Tr}}={{f1+f2+f3+f4},{l\(40)f4-f2\(41)},{l\(40)f3-f1\(41)},{d\(40)f1-f2+f3-f4\(41)}}

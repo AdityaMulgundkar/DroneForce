@@ -7,4 +7,4 @@ class DFFrame:
     for motor in self.motors:
         m = [motor.roll, motor.pitch, motor.yaw, motor.thrust]
         self.EA.append(m)
-    self.CA = np.linalg.pinv(self.EA)
+    self.CA = np.linalg.pinv(self.EA,)
