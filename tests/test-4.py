@@ -71,7 +71,7 @@ if __name__ == '__main__':
         # k is constant for now
         kT = 1
 
-        Tp_des = 0
+        Tp_des = 3
         Tq_des = 0
         Tr_des = 0
         T_des = 9
@@ -106,6 +106,3 @@ if __name__ == '__main__':
             PWM_out.append(PWM)
 
         print(f"PWM outputs with Fault: {PWM_out}")
-
-
-        
