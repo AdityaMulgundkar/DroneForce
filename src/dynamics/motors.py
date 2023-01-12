@@ -9,3 +9,4 @@ class DFMotor:
     # drag co-efficient
     self.moment_coeff = moment_coeff
     self.distance = [lx, ly, lz]
+    self.faulty = False

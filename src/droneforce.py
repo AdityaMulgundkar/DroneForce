@@ -1,5 +1,5 @@
 """
-TODO: Description of what this file does.
+TODO: DroneForce class, can be imported to setup the drone and call its base functions.
 """
 from src.utility.logger import *
 

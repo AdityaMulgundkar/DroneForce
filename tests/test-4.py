@@ -24,7 +24,7 @@ from src.dynamics.mass import DFMass
 from src.dynamics.frame import DFFrame, Frames
 from src.dynamics.motors import DFMotor
 
-from src.utility.map_range import map_range
+from src.utility.map_range import map_range, torque_to_PWM
 
 import numpy as np
 
@@ -34,26 +34,6 @@ logging.debug('Beginning of code...')
 if __name__ == '__main__':
     mass = DFMass(1000)
     inertia = DFInertia(1,1,1)
-
-    # Quad +
-    # m1 = DFMotor(-1,0,1,1)
-    # m2 = DFMotor(1,0,1,1)
-    # m3 = DFMotor(0,1,-1,1)
-    # m4 = DFMotor(0,-1,-1,1)
-    
-    # Quad X
-    # m1 = DFMotor(-1,1,1,1)
-    # m2 = DFMotor(1,-1,1,1)
-    # m3 = DFMotor(1,1,-1,1)
-    # m4 = DFMotor(-1,-1,-1,1)
-
-    # Hexa X
-    m1 = DFMotor(-1, 0, -1, 1)
-    m2 = DFMotor(1, 0, 1, 1)
-    m3 = DFMotor(0.5,-0.866,-1, 1)
-    m4 = DFMotor(-0.5,0.866,1, 1)
-    m5 = DFMotor(-0.5,-0.866,1, 1)
-    m6 = DFMotor(0.5,0.866,-1, 1)
 
     frame = DFFrame(frame_type=Frames.Hexa_X)
 
@@ -71,10 +51,10 @@ if __name__ == '__main__':
         # k is constant for now
         kT = 1
 
-        Tp_des = 3
+        Tp_des = 0
         Tq_des = 0
         Tr_des = 0
-        T_des = 9
+        T_des = 7
 
         Torq = [Tp_des, Tq_des, Tr_des, T_des]
         
@@ -83,13 +63,16 @@ if __name__ == '__main__':
 
         # Convert motor torque (input u) to PWM
         PWM_out = []
-        for u in u_input:
-            PWM = map_range(u, 0, 10, 1000, 2000)
+        i = 0
+        for input in u_input:
+            PWM = torque_to_PWM(input, (frame.frame_type.value[i]))
+            i = i + 1
             PWM_out.append(PWM)
 
         print(f"PWM outputs: {PWM_out}")
 
-        drone.frame.inject_fault(1)
+        fault_motor_num = 1
+        drone.frame.inject_fault(fault_motor_num)
         logging.info(f'Control Allocation: \n{drone.frame.CA}')
         logging.info(f'Control Allocation Inverse: \n{drone.frame.CA_inv}')
 
@@ -101,8 +84,10 @@ if __name__ == '__main__':
         
         # Convert motor torque (input u) to PWM
         PWM_out = []
-        for u in u_input:
-            PWM = map_range(u, 0, 10, 1000, 2000)
+        i = 0
+        for input in u_input:
+            PWM = torque_to_PWM(input, (frame.frame_type.value[i]))
+            i = i + 1
             PWM_out.append(PWM)
 
         print(f"PWM outputs with Fault: {PWM_out}")
