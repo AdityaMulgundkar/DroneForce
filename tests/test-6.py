@@ -15,6 +15,7 @@ import sys
 import time
 from dronekit import VehicleMode
 from pymavlink import mavutil
+from controller.p_controller import P_Controller
 
 
 cur_path=os.path.abspath(os.path.dirname(__file__))
@@ -51,30 +52,6 @@ if __name__ == '__main__':
         logging.info(f'Effectiveness: \n{ea_matrix}')
         logging.info(f'Control Allocation: \n{ca_matrix}')
 
-        # EL method
-        # k is constant for now
-        kT = 1
-
-        Tp_des = 0
-        Tq_des = 0
-        Tr_des = 0
-        T_des = 7
-
-        Torq = [Tp_des, Tq_des, Tr_des, T_des]
-        
-        u_input = np.matmul(drone.frame.CA_inv, Torq)
-        print(f"u1, u2, u3, u4, u5, u6: {u_input}")
-
-        # Convert motor torque (input u) to PWM
-        PWM_out = []
-        i = 0
-        for input in u_input:
-            PWM = torque_to_PWM(input, (frame.frame_type.value[i]))
-            i = i + 1
-            PWM_out.append(PWM)
-
-        print(f"PWM outputs: {PWM_out}")
-
         connection_string = '127.0.0.1:14553'
 
         with DFAutopilot(connection_string=connection_string) as commander:
@@ -104,44 +81,45 @@ if __name__ == '__main__':
                 print(" Waiting for arming...")
                 time.sleep(1)
 
+            # Add P Controller takeoff
             print("Taking off!")
-            commander.master.simple_takeoff(20)  # Take off to target altitude
+
+            with P_Controller(commander.master, 0.5) as controller:
+                x=0
+                # get rpy from dronekit
+                z = commander.location.global_relative_frame.alt
+                des_z = 10
 
             # Wait until the vehicle reaches a safe height before processing the goto
             #  (otherwise the command after Vehicle.simple_takeoff will execute
             #   immediately).
-            while True:
+            while z!=des_z:
                 print(" Altitude: ", commander.master.location.global_relative_frame.alt)
-                # Break and return from function just below target altitude.
-                if commander.master.location.global_relative_frame.alt >= 20 * 0.95:
-                    print("Reached target altitude")
-                    break
+                Tp_des = 0
+                Tq_des = 0
+                Tr_des = 0
+                T_des = controller.kp*(des_z - z)
+
+                Torq = [Tp_des, Tq_des, Tr_des, T_des]
+                
+                u_input = np.matmul(drone.frame.CA_inv, Torq)
+                print(f"u1, u2, u3, u4, u5, u6: {u_input}")
+
+                # Convert motor torque (input u) to PWM
+                PWM_out = []
+                i = 0
+                for input in u_input:
+                    PWM = torque_to_PWM(input, (frame.frame_type.value[i]))
+                    i = i + 1
+                    PWM_out.append(PWM)
+
+                print(f"PWM outputs: {PWM_out}")
                 time.sleep(1)
                 
             # sleep so we can see the change in map
             time.sleep(5)
 
             logging.debug("Last Heartbeat: %s", commander.last_heartbeat)
-
-            # TODO: Set motor modes to 1, for the motors you need to introduce fault into
-            # set_motor_mode(1, 1)
-            commander.set_motor_mode(1, 1)
-            commander.set_motor_mode(2, 1)
-
-            # TODO: Manually pass a PWM value to the selected motor. For simulating a fault, we pass 1000, which means the motor does not run at all.
-            commander.set_servo(1, 1000)
-            commander.set_servo(2, 1000)
-
-            print("Taking off!")
-            commander.master.simple_takeoff(10)  # Take off to target altitude
-            
-            while True:
-                print(" Altitude: ", commander.master.location.global_relative_frame.alt)
-                # Break and return from function just below target altitude.
-                if commander.master.location.global_relative_frame.alt >= 10 * 0.95:
-                    print("Reached target altitude")
-                    break
-                time.sleep(1)
 
             time.sleep(10)
         
