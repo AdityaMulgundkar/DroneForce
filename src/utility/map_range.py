@@ -30,3 +30,6 @@ def torque_to_PWM(value, motor):
         print(f"Faulty motor: {motor}")
         val = 1000
     return val
+
+def map_pid_value(des):
+    return map_range(des, 0, des, 1, 5)
