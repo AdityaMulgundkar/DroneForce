@@ -39,10 +39,6 @@ class DFAutopilot:
             self.master.armed = False
         # Kill heartbeat
         self.master.remove_message_listener('HEARTBEAT', self.heart)
-        # Kill scheduler
-        for i in range(0, len(self.schedules)-1):
-            t = self.threads[i]
-            t.stop()
         # Close Drone connection
         logging.info('disconnect -> closing Drone connection') 
         self.master.close()

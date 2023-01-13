@@ -6,6 +6,7 @@ import logging
 class P_Controller:
     """ P Controller manager. """
     def __init__(self, Kp=0.25, *args, **kwargs):
+        self.Kp = Kp
         logging.info('P Controller initiated')
 
     def __enter__(self):

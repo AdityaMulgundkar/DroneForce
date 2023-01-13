@@ -15,7 +15,6 @@ import sys
 import time
 from dronekit import VehicleMode
 from pymavlink import mavutil
-from controller.p_controller import P_Controller
 
 
 cur_path=os.path.abspath(os.path.dirname(__file__))
@@ -28,6 +27,7 @@ from src.dynamics.inertia import DFInertia
 from src.dynamics.mass import DFMass
 from src.dynamics.frame import DFFrame, Frames
 from src.dynamics.motors import DFMotor
+from src.controller.p_controller import P_Controller
 
 from src.utility.map_range import map_range, torque_to_PWM
 
@@ -58,12 +58,12 @@ if __name__ == '__main__':
             logging.debug("Ready: %s", commander)
 
             # Reset all motor configs
-            commander.set_motor_mode(1, 33)
-            commander.set_motor_mode(2, 34)
-            commander.set_motor_mode(3, 35)
-            commander.set_motor_mode(4, 36)
-            commander.set_motor_mode(5, 37)
-            commander.set_motor_mode(6, 38)
+            commander.set_motor_mode(1, 1)
+            commander.set_motor_mode(2, 1)
+            commander.set_motor_mode(3, 1)
+            commander.set_motor_mode(4, 1)
+            commander.set_motor_mode(5, 1)
+            commander.set_motor_mode(6, 1)
 
             logging.debug("Basic pre-arm checks")
             # Don't try to arm until autopilot is ready
@@ -84,42 +84,53 @@ if __name__ == '__main__':
             # Add P Controller takeoff
             print("Taking off!")
 
-            with P_Controller(commander.master, 0.5) as controller:
-                x=0
+            with P_Controller(Kp=0.085) as controller:
                 # get rpy from dronekit
-                z = commander.location.global_relative_frame.alt
+
+                # Wait until the vehicle reaches a safe height before processing the goto
+                #  (otherwise the command after Vehicle.simple_takeoff will execute
+                #   immediately).
+                z = commander.master.location.global_relative_frame.alt
                 des_z = 10
 
-            # Wait until the vehicle reaches a safe height before processing the goto
-            #  (otherwise the command after Vehicle.simple_takeoff will execute
-            #   immediately).
-            while z!=des_z:
-                print(" Altitude: ", commander.master.location.global_relative_frame.alt)
                 Tp_des = 0
                 Tq_des = 0
                 Tr_des = 0
-                T_des = controller.kp*(des_z - z)
+                T_des = 0
+                while z!=des_z:
+                    z = commander.master.location.global_relative_frame.alt
+                    des_z = 10
+                    T_des = T_des + controller.Kp*(des_z - z)
+                    if T_des>2.25:
+                        T_des = 2.25
+                    if T_des<1.85:
+                        T_des = 1.85
 
-                Torq = [Tp_des, Tq_des, Tr_des, T_des]
-                
-                u_input = np.matmul(drone.frame.CA_inv, Torq)
-                print(f"u1, u2, u3, u4, u5, u6: {u_input}")
+                    Torq = [Tp_des, Tq_des, Tr_des, T_des]
+                    
+                    u_input = np.matmul(drone.frame.CA_inv, Torq)
+                    print(f"z: {z}")
+                    print(f"des_z: {des_z}")
+                    print(f"T_des: {T_des}")
+                    print(f"Torq: {Torq}")
 
-                # Convert motor torque (input u) to PWM
-                PWM_out = []
-                i = 0
-                for input in u_input:
-                    PWM = torque_to_PWM(input, (frame.frame_type.value[i]))
-                    i = i + 1
-                    PWM_out.append(PWM)
+                    # Convert motor torque (input u) to PWM
+                    PWM_out_values = []
+                    i = 0
+                    for input in u_input:
+                        PWM = torque_to_PWM(input, (frame.frame_type.value[i]))
+                        i = i + 1
+                        PWM_out_values.append(PWM)
 
-                print(f"PWM outputs: {PWM_out}")
-                time.sleep(1)
-                
-            # sleep so we can see the change in map
-            time.sleep(5)
+                    print(f"PWM outputs: {PWM_out_values}\n")
+                    i=1
+                    for PWM in PWM_out_values:
+                        commander.set_servo(i, PWM)
+                        i = i+1
 
-            logging.debug("Last Heartbeat: %s", commander.last_heartbeat)
+                    time.sleep(1)
+                    
+                # sleep so we can see the change in map
+                time.sleep(100)
 
-            time.sleep(10)
-        
+                logging.debug("Last Heartbeat: %s", commander.last_heartbeat)
