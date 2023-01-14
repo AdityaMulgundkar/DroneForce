@@ -7,6 +7,7 @@ class DFFrame:
   def __init__(self, frame_type):
     self.EA = []
     self.CA = []
+    self.CA_restore = []
     self.CA_inv = []
     self.frame_type = frame_type
     # self.motors = [0] * len(frame_type.value)
@@ -17,6 +18,7 @@ class DFFrame:
         self.motors.append(motor)
         self.EA.append(m)
     self.CA = np.linalg.pinv(self.EA,)
+    self.CA_restore = np.linalg.pinv(self.EA,)
     self.CA_inv = np.linalg.pinv(self.CA)
     self.CA_inv = np.round(self.CA_inv, 5)
 
@@ -25,6 +27,13 @@ class DFFrame:
     self.CA[:,motor_num-1] = 0
     self.CA_inv = np.linalg.pinv(self.CA)
     self.CA_inv = np.round(self.CA_inv, 5)
+
+  def eliminate_fault(self, motor_num):
+    self.frame_type.value[motor_num-1].faulty = False
+    self.CA = self.CA_restore
+    self.CA_inv = np.linalg.pinv(self.CA)
+    self.CA_inv = np.round(self.CA_inv, 5)
+    # print(f"Eliminate CA: {self.CA}")
 
 # Using enum class create enumerations
 class Frames(enum.Enum):
