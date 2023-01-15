@@ -37,12 +37,27 @@ class DFFrame:
 
 # Using enum class create enumerations
 class Frames(enum.Enum):
-  Hexa_X = [DFMotor(-1, 0, -1, 1)
-    , DFMotor(1, 0, 1, 1),
-     DFMotor(0.5,-0.866,-1, 1),
-     DFMotor(-0.5,0.866,1, 1),
-     DFMotor(-0.5,-0.866,1, 1),
-     DFMotor(0.5,0.866,-1, 1)]
+  Hexa_X = [
+    DFMotor(1, 0, 1, 1),
+    DFMotor(-1, 0, -1, 1),
+    DFMotor(-0.5, 0.866, 1, 1),
+    DFMotor(0.5, -0.866, -1, 1),
+    DFMotor(0.5, 0.866, -1, 1),
+    DFMotor(-0.5, -0.866, 1, 1)]
+  Hexa_X2 = [
+    DFMotor(-1, 0, -1, 1),
+    DFMotor(1, 0, 1, 1),
+    DFMotor(0.5,-0.866,-1, 1),
+    DFMotor(-0.5,0.866,1, 1),
+    DFMotor(-0.5,-0.866,1, 1),
+    DFMotor(0.5,0.866,-1, 1)]
+  Hexa_X3 = [
+    DFMotor(-1, 0, -1, 1),
+    DFMotor(1, 0, 1, 1),
+    DFMotor(0.5, 0.866, -1, 1),
+    DFMotor(-0.5, -0.866, 1, 1),
+    DFMotor(-0.5, 0.866, 1, 1),
+    DFMotor(0.5, -0.866, -1, 1)]
   Quad_X = [
     DFMotor(-1,1,1,1),
     DFMotor(1,-1,1,1),
