@@ -8,6 +8,11 @@ How to run:
 1. B. (OR) Connect real vehicle on USB or RT
 2. Open QGC/Ground control - it will auto connect to 127.0.0.1:14550 or 127.0.0.1:14551
 3. Run this file
+
+ASMC:
+mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
+python3 sim_vehicle.py -v ArduCopter --vehicle=ArduCopter --frame=X
+roslaunch mavros apm.launch fcu_url:=udp://:14553
 """
 
 import math

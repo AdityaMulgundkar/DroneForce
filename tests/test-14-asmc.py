@@ -98,14 +98,19 @@ if __name__ == '__main__':
                 while True:
                     x = 0
                     # State callback
+                    # Skipped
 
                     # Odometry callback
+                    # controller.odomCb
 
                     # Create local Pose
+                    posCb = controller.posCb
 
-                    # Create mew pose
+                    # Create new pose
+                    newPoseCB = controller.newPoseCB
 
                     # MultiDoF callback
+                    multiDoFCb = controller.multiDoFCb
 
                     # setpointposition/local publisher
 
@@ -115,16 +120,7 @@ if __name__ == '__main__':
 
 # Main function
 def main(argv):
-    rospy.Subscriber('mavros/state', State, cnt.stateCb)
-    rospy.Subscriber('mavros/local_position/odom', Odometry, cnt.odomCb)
-
-    # Subscribe to drone's local position
-    rospy.Subscriber('mavros/local_position/pose', PoseStamped, cnt.posCb)
-    rospy.Subscriber('new_pose', PoseStamped, cnt.newPoseCB)
-    rospy.Subscriber('command/trajectory', Mdjt, cnt.multiDoFCb)
     sp_pub = rospy.Publisher('mavros/setpoint_position/local', PoseStamped, queue_size=10)
-
-    # Arming sequence here
 
     k=0
     while k<20:
