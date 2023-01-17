@@ -47,7 +47,7 @@ def pi_clip(angle):
 
 logging.debug('Beginning of code...')
 
-timestep_fast = 0.1
+timestep_fast = 0.01
 timestep_slow = 0.1
 
 if __name__ == '__main__':
@@ -100,7 +100,7 @@ if __name__ == '__main__':
                 des_pitch = 0
                 des_roll = 0
                 des_yaw = 0
-                des_z = 100
+                des_z = 10
 
                 Tp_des = 0
                 Tq_des = 0
@@ -108,9 +108,12 @@ if __name__ == '__main__':
                 T_des = 0
                 Torq = [Tp_des, Tq_des, Tr_des, T_des]
 
+                # pid_p = PID(0.35, 0.001, 0.01)
+                # pid_q = PID(0.35, 0.001, 0.01)
+                # pid_r = PID(0.15, 0.01, 0.01)
                 pid_p = PID(0.5, 0.0, 0.0)
                 pid_q = PID(0.5, 0.0, 0.0)
-                pid_r = PID(0.015, 0.01, 0.05)
+                pid_r = PID(0.5, 0.0, 0.0)
                 # Manually tuned behaviour
                 pid_T = PID(0.25, 0.025, 0.3)
                 
@@ -119,9 +122,9 @@ if __name__ == '__main__':
                 pid_r.sample_time = timestep_fast
                 pid_T.sample_time = timestep_slow
 
-                pid_p.output_limits = (-5, 5) 
-                pid_q.output_limits = (-5, 5) 
-                pid_r.output_limits = (-5, 5) 
+                pid_p.output_limits = (-1.0, 1.0) 
+                pid_q.output_limits = (-1.0, 1.0) 
+                pid_r.output_limits = (-1.0, 1.0) 
                 # pid_T.output_limits = (1.5, 10) 
                 pid_T.output_limits = (1.5, 5) 
 

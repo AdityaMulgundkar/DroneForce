@@ -24,7 +24,23 @@ class DFFrame:
 
   def inject_fault(self, motor_num):
     self.frame_type.value[motor_num-1].faulty = True
-    self.CA[:,motor_num-1] = 0
+    self.EA = []
+    i = 0
+    for motor in self.frame_type.value:
+        if(i==0):
+          m = [0, 0, 0, 0]
+          i = i+1
+        elif(i==1):
+          m = [0.5, 0, 0.32500002, -6.5]
+          i = i+1
+        else:
+          m = [motor.roll, motor.pitch, motor.yaw, motor.thrust]
+        self.motors.append(motor)
+        self.EA.append(m)
+        
+      # self.CA[i,motor_num-1] = 0
+    self.CA = np.linalg.pinv(self.EA)
+    self.CA = np.round(self.CA, 5)
     self.CA_inv = np.linalg.pinv(self.CA)
     self.CA_inv = np.round(self.CA_inv, 5)
 
@@ -43,27 +59,36 @@ class Frames(enum.Enum):
     DFMotor(-0.5, 0.866, 1, 1),
     DFMotor(0.5, -0.866, -1, 1),
     DFMotor(0.5, 0.866, -1, 1),
-    DFMotor(-0.5, -0.866, 1, 1)]
+    DFMotor(-0.5, -0.866, 1, 1)
+    ]
   Hexa_X2 = [
     DFMotor(-1, 0, -1, 1),
     DFMotor(1, 0, 1, 1),
     DFMotor(0.5,-0.866,-1, 1),
     DFMotor(-0.5,0.866,1, 1),
     DFMotor(-0.5,-0.866,1, 1),
-    DFMotor(0.5,0.866,-1, 1)]
+    DFMotor(0.5,0.866,-1, 1)
+    ]
   Hexa_X3 = [
     DFMotor(-1, 0, -1, 1),
     DFMotor(1, 0, 1, 1),
     DFMotor(0.5, 0.866, -1, 1),
     DFMotor(-0.5, -0.866, 1, 1),
     DFMotor(-0.5, 0.866, 1, 1),
-    DFMotor(0.5, -0.866, -1, 1)]
-  Quad_X = [
+    DFMotor(0.5, -0.866, -1, 1)
+    ]
+  Hexa_X4 = [
+    DFMotor(-6.5, 0, -0.32500002, 6.5),
+    DFMotor(6.5, 0, 0.32500002, 6.5),
+    DFMotor(3.25, 5.6291623, -0.32500002, 6.5),
+    DFMotor(-3.25, -5.6291623, 0.32500002, 6.5),
+    DFMotor(-3.25, 5.6291623, 0.
+
     DFMotor(-1,1,1,1),
     DFMotor(1,-1,1,1),
     DFMotor(1,1,-1,1),
     DFMotor(-1,-1,-1,1),
-  ]
+    ]
 
     # Quad X
     # m1 = DFMotor(-1,1,1,1)

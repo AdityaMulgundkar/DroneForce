@@ -11,7 +11,7 @@ def map_range(value, leftMin, leftMax, rightMin, rightMax):
 
 def torque_to_PWM(value, motor):
     # Preset maps for Torque to PWM
-    fromMin, fromMax, toMin, toMax = -10, 10, 1000, 2000
+    fromMin, fromMax, toMin, toMax = 0, 50, 1000, 2000
     # Snap input value to the PWM range
     if(value>fromMax):
         value = fromMax
@@ -26,9 +26,6 @@ def torque_to_PWM(value, motor):
 
     # Convert the 0-1 range into a value in the to range.
     val = int(toMin + (valueScaled * toSpan))
-    if(motor.faulty):
-        print(f"Faulty motor: {motor}")
-        val = 1000
     return val
 
 def map_pid_value(des):

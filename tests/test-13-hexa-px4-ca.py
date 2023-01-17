@@ -54,7 +54,7 @@ if __name__ == '__main__':
     mass = DFMass(1000)
     inertia = DFInertia(1,1,1)
 
-    frame = DFFrame(frame_type=Frames.Hexa_X3)
+    frame = DFFrame(frame_type=Frames.Hexa_X4)
 
     logging.getLogger('matplotlib.font_manager').disabled = True
 
@@ -132,7 +132,7 @@ if __name__ == '__main__':
                 pid_q.output_limits = (-0.5, 0.5) 
                 pid_r.output_limits = (-0.5, 0.5) 
                 # pid_T.output_limits = (1.5, 10) 
-                pid_T.output_limits = (0, 5) 
+                pid_T.output_limits = (0, 7.5) 
 
                 pid_p.error_map = pi_clip
                 pid_q.error_map = pi_clip
@@ -141,12 +141,12 @@ if __name__ == '__main__':
                 start_time = time.time()
 
                 while True:
-                    # if(time.time() - start_time > 10):
+                    if(time.time() - start_time > 10):
                         # Roll a little?
-                        # drone.frame.inject_fault(1)
+                        drone.frame.inject_fault(1)
                         # print(f"Fault EA: \n{drone.frame.EA}\n\n")
-                        # print(f"Fault CA: \n{drone.frame.CA}\n\n")
-                        # print(f"Fault CA_inv {drone.frame.CA_inv}")
+                        print(f"Fault CA: \n{drone.frame.CA}\n\n")
+                        print(f"Fault CA_inv {drone.frame.CA_inv}")
                         # start_time = time.time()
 
                     roll = commander.master.attitude.roll
@@ -192,7 +192,7 @@ if __name__ == '__main__':
                     print(f"Torq: {Torq}")
                     print(f"u inputs: {u_input}")
                     print(f"Sensor inputs: {roll, pitch, yaw, z}")
-                    print(f"PWM outputs: {PWM_out_values}\n")
+                    print(f"PWM outputs: {PWM_out_values}")
 
                     i=1
                     for PWM in PWM_out_values:

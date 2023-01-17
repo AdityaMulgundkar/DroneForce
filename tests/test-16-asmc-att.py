@@ -138,7 +138,7 @@ class Controller:
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
         self.sp.pose.position.y = 0.0
-        self.ALT_SP = 1.0
+        self.ALT_SP = 10.0
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
         self.local_quat = np.array([0.0, 0.0, 0.0, 1.0])
@@ -529,8 +529,8 @@ def main(argv):
             Tp = 0
             Tq = 0
             Tr = 0
-            T = cnt.thrust_cmd.thrust
             cnt.geo_con_new()
+            T = cnt.thrust_cmd.thrust
             Torq = [Tp, Tq, Tr, T]
 
             # Compute CA matrix
