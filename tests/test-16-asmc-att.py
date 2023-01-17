@@ -444,7 +444,7 @@ class Controller:
         self.max_mom = 10
         self.max_mom_throttle = 0.33
 
-        self.Lam_q = np.array([100.0, 100.0, 100.0])
+        self.Lam_q = np.array([10.0, 10.0, 1.0])
         self.Phi_q = np.array([1.5, 1.5, 1.5])
         
         self.alpha_0_q = np.array([1,1,1])
@@ -512,7 +512,7 @@ def main(argv):
     rospy.init_node('setpoint_node', anonymous=True)
     modes = fcuModes()  #flight modes
     cnt = Controller()  # controller object
-    rate = rospy.Rate(20)
+    rate = rospy.Rate(50)
     rospy.Subscriber('mavros/state', State, cnt.stateCb)
     rospy.Subscriber('mavros/local_position/odom', Odometry, cnt.odomCb)
 
