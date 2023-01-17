@@ -146,27 +146,38 @@ class Controller:
         self.errInt = np.zeros(3)
         self.att_cmd = PoseStamped()
         self.thrust_cmd = Thrust()
-        self.df_cmd = Float64(0)
+
+        # self.df_cmd = Float64(0)
+        self.torq_cmd = np.array([0, 0, 0])
+        self.th_cmd = np.array([0, 0, 0])
 
         self.odom_data = PoseStamped()
 
-        # Control parameters
+        # Control parameters for the outer loop
         self.Kp0 = np.array([1.0, 1.0, 1.0])
         self.Kp1 = np.array([2.0, 2.0, 1.0])
 
         self.Lam = np.array([2.0, 2.0, 3.0])
         self.Phi = np.array([1.5, 1.5, 1.0])
-        self.M = 0.1
-
+        
         self.alpha_0 = np.array([1,1,1])
         self.alpha_1 = np.array([3,3,3])
+
+        # Control parameters for the inner loop
+        self.Kp0_q = np.array([0.1, 0.1, 0.1])
+        self.Kp1_q = np.array([0.1, 0.1, 0.1])
+
+        self.M = 0.1
         self.alpha_m = 0.01
         self.v = 0.1
 
         self.norm_thrust_const = 0.06
+        self.max_th = 18.0
+        self.max_throttle = 1.0
+
+        # self.norm_thrust_const = 0.06
         # self.max_th = 16.0
-        self.max_th = 16.0
-        self.max_throttle = 0.96
+        # self.max_throttle = 0.96
         
         self.gravity = np.array([0, 0, 9.8])
         self.pre_time = rospy.get_time()    
@@ -305,8 +316,8 @@ class Controller:
             self.Kp1 += (sv - np.multiply(self.alpha_1, self.Kp1))*dt
             self.Kp0 = np.maximum(self.Kp0, 0.0001*np.ones(3))
             self.Kp1 = np.maximum(self.Kp1, 0.0001*np.ones(3))
-            # self.M += (-sv[2] - self.alpha_m*self.M)*dt
-            # self.M = np.maximum(self.M, 0.1)
+            self.M += (-sv[2] - self.alpha_m*self.M)*dt
+            self.M = np.maximum(self.M, 0.1)
             # print(self.M)
 
         Rho = self.Kp0 + self.Kp1*errPos
@@ -332,10 +343,10 @@ class Controller:
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
 
-        print(f"Current Pose: {curPos}")
-        print(f"Des Pose: {desPos}")
-        print(f"Err Pose: {errPos}")
-        print(f"Thrust cmd: {self.df_cmd.data}")
+        # print(f"Current Pose: {curPos}")
+        # print(f"Des Pose: {desPos}")
+        # print(f"Err Pose: {errPos}")
+        # print(f"Thrust cmd: {self.df_cmd.data}")
         
         return des_th
 
@@ -374,9 +385,11 @@ class Controller:
         self.att_cmd.pose.orientation.w = quat_des[3]
         self.thrust_cmd.thrust = thrust
 
-        self.df_cmd = Float64(thrust)
+        # self.df_cmd = Float64(thrust)
         # print(thrust)
         # print(quat_des)
+        # self.tor.header.stamp = now
+        # self.moment_cmd.moment = thrust
 
         # self.data_out.orientation = self.att_cmd.pose.orientation
 
@@ -419,11 +432,7 @@ class Controller:
 
         self.euler_rate_err = curr_euler_rate - des_euler_rate
 
-        # print(self.euler_err)
-        # print(self.euler_rate_err)
-
-        # print("-----------------")
-
+        self.th_cmd = thrust
 
     def moment_des(self):
         dt = rospy.get_time() - self.pre_time
@@ -431,13 +440,24 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
+        self.norm_moment_const = 0.03
+        self.max_mom = 10
+        self.max_mom_throttle = 0.33
+
+        self.Lam_q = np.array([100.0, 100.0, 100.0])
+        self.Phi_q = np.array([1.5, 1.5, 1.5])
+        
+        self.alpha_0_q = np.array([1,1,1])
+        self.alpha_1_q = np.array([3,3,3])
+
+        print(f"Euler err: {self.euler_err}")
         sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
 
         if self.armed:
             self.Kp0_q += (sv_q - np.multiply(self.alpha_0_q, self.Kp0_q))*dt
             self.Kp1_q += (sv_q - np.multiply(self.alpha_1_q, self.Kp1_q))*dt
-            # self.Kp0_q = np.maximum(self.Kp0_q, 0.0001*np.ones(3))
-            # self.Kp1_q = np.maximum(self.Kp1_q, 0.0001*np.ones(3))
+            self.Kp0_q = np.maximum(self.Kp0_q, 0.0001*np.ones(3))
+            self.Kp1_q = np.maximum(self.Kp1_q, 0.0001*np.ones(3))
 
         Rho_q = self.Kp0_q + self.Kp1_q*self.euler_err
 
@@ -448,9 +468,19 @@ class Controller:
 
         des_mom = -np.multiply(self.Lam_q, sv_q) - delTau_q
 
+        # putting limit on maximum vector
+        if np.linalg.norm(des_mom) > self.max_mom:
+            des_mom = (self.max_mom/np.linalg.norm(des_mom))*des_mom
+
+        des_mom = self.norm_moment_const * des_mom
+
+        moment = np.maximum(-self.max_mom_throttle, np.minimum(des_mom, self.max_mom_throttle))
+        self.torq_cmd = moment
+        
+
     def torque_to_PWM(self, value):
         # Preset maps for Torque to PWM
-        fromMin, fromMax, toMin, toMax = 0, 1, 1000, 2000
+        fromMin, fromMax, toMin, toMax = -1, 1, 1000, 2000
         # Snap input value to the PWM range
         if(value>fromMax):
             value = fromMax
@@ -468,10 +498,10 @@ class Controller:
         return val
 
     def pub_att(self):
-        self.geo_con()
+        # self.geo_con()
         self.thrust_pub.publish(self.thrust_cmd)
         self.att_pub.publish(self.att_cmd)
-        self.df_pub.publish(self.df_cmd)
+        # self.df_pub.publish(self.df_cmd)
         # self.odom_data = self.odomCb
         # self.data_pub.publish(self.data_out)
 
@@ -521,16 +551,23 @@ def main(argv):
         if(DFFlag):
             for i in range(1,4):
                 commander.set_motor_mode(i, 1)
+                cnt.armed = True
             DFFlag = False
         
         while not rospy.is_shutdown():
             cnt.pub_att()
-            # New code
-            Tp = 0
-            Tq = 0
-            Tr = 0
             cnt.geo_con_new()
-            T = cnt.thrust_cmd.thrust
+            cnt.moment_des()
+            # New code
+            # Tp = 0
+            # Tq = 0
+            # Tr = 0
+            Tp, Tq, Tr = cnt.torq_cmd
+            # Tp = 0
+            # Tq = 0
+            # Tr = 0
+            T = cnt.th_cmd
+            # T = cnt.thrust_cmd.thrust
             Torq = [Tp, Tq, Tr, T]
 
             # Compute CA matrix
