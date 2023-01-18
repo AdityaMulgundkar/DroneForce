@@ -191,27 +191,8 @@ class Controller:
         # Torque publisher
         self.df_pub = rospy.Publisher('drone_force/DFTorque', Float64, queue_size=10)
 
-        self.df_p = 0
-        self.df_q = 0
-        self.df_r = 0
         self.df_T = 0
-
-        self.df_p = 0
-        self.df_q = 0
-        self.df_r = 0
-        self.df_T = 0
-
-        self.df_p_dot = 0
-        self.df_q_dot = 0
-        self.df_r_dot = 0
-
-        self.df_x = 0
-        self.df_y = 0
-        self.df_z = 0
-
-        self.df_x_dot = 0
-        self.df_y_dot = 0
-        self.df_z_dot = 0
+        
         # self.data_pub = rospy.Publisher('/data_out', PlotDataMsg, queue_size=10)
         self.armed = False
 
@@ -261,7 +242,8 @@ class Controller:
         # self.sp.position.z = self.local_pos.z
 
     def odomCb(self, msg):
-        print(f"odomCb: {msg.pose.pose.position.z}")
+        print(f"odomCb z: {msg.pose.pose.position.z}")
+
         self.cur_pose.pose.position.x = msg.pose.pose.position.x
         self.cur_pose.pose.position.y = msg.pose.pose.position.y
         self.cur_pose.pose.position.z = msg.pose.pose.position.z
@@ -423,6 +405,10 @@ class Controller:
                                     self.cur_vel.twist.angular.y,
                                     self.cur_vel.twist.angular.z])
 
+        # curr_euler_rate = np.array([self.df_p_dot,
+        #                             self.df_q_dot,
+        #                             self.df_r_dot])
+
         self.euler_rate_err = curr_euler_rate - des_euler_rate
 
         self.th_cmd = thrust
@@ -476,7 +462,7 @@ class Controller:
 
     def torque_to_PWM(self, value):
         # Preset maps for Torque to PWM
-        fromMin, fromMax, toMin, toMax = -1.5, 1.5, 1000, 2000
+        fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
         # Snap input value to the PWM range
         if(value>fromMax):
             value = fromMax
@@ -508,7 +494,7 @@ def main(argv):
     rospy.init_node('setpoint_node', anonymous=True)
     modes = fcuModes()  #flight modes
     cnt = Controller()  # controller object
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(100)
     rospy.Subscriber('mavros/state', State, cnt.stateCb)
     rospy.Subscriber('mavros/local_position/odom', Odometry, cnt.odomCb)
 
@@ -556,10 +542,10 @@ def main(argv):
             # print("Flag 1")
             # cnt.moment_des()
             # New code
-            # Tp = 0
-            # Tq = 0
-            # Tr = 0
-            Tp, Tq, Tr = cnt.torq_cmd
+            Tp = 0
+            Tq = 0
+            Tr = 0
+            # Tp, Tq, Tr = cnt.torq_cmd
             # Tp = 0
             # Tq = 0
             # Tr = 0
@@ -595,28 +581,8 @@ def main(argv):
             # print(f"CA: {self.CA}\n")
             # print(f"CA inv: {self.CA_inv}\n")
 
-            cnt.df_p = commander.master.attitude.roll
-            cnt.df_q = commander.master.attitude.pitch
-            cnt.df_r = commander.master.attitude.yaw
-            # cnt.df_T = commander.master.location.global_relative_frame.alt
+            cnt.df_T = commander.master.location.global_relative_frame.alt
 
-            cnt.df_p_dot = commander.master._rollspeed
-            cnt.df_q_dot = commander.master._pitchspeed
-            cnt.df_r_dot = commander.master._yawspeed
-
-            cnt.df_x = commander.master.location.local_frame.north
-            cnt.df_y = commander.master.location.local_frame.east
-            cnt.df_z = commander.master.location.local_frame.down
-
-            cnt.df_x_dot = commander.master.velocity[0]
-            cnt.df_y_dot = commander.master.velocity[1]
-            cnt.df_z_dot = commander.master.velocity[2]
-
-            print(f"DF Pos: {cnt.df_x, cnt.df_y, cnt.df_z}")
-            print(f"DF Pos Rate: {cnt.df_x_dot, cnt.df_y_dot, cnt.df_z_dot}")
-
-            print(f"DF Ang: {cnt.df_p, cnt.df_q, cnt.df_r}")
-            print(f"DF Ang Rate: {cnt.df_p_dot, cnt.df_q_dot, cnt.df_r_dot}")
 
             print(f"Torq: {Torq}")
             print(f"u inputs: {u_input}")

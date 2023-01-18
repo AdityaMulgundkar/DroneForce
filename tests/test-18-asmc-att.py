@@ -124,14 +124,6 @@ class Controller:
         self.state = State()
         # Instantiate a setpoints message
         self.sp = PoseStamped()
-        # set the flag to use position setpoints and yaw angle
-       
-        # Step size for position update
-        self.STEP_SIZE = 2.0
-        # Fence. We will assume a square fence for now
-        self.FENCE_LIMIT = 5.0
-
-        # A Message for the current local position of the drone
 
         # initial values for setpoints
         self.cur_pose = PoseStamped()
@@ -157,7 +149,7 @@ class Controller:
         self.Kp0 =  np.array([0.1, 0.1, 0.1])
         self.Kp1 =  np.array([0.1, 0.1, 0.1])
 
-        self.Lam = np.array([2.0, 2.0, 2.0])
+        self.Lam = np.array([2.0, 2.0, 3.0])
         self.Phi = np.array([1.5, 1.5, 1.1])
         
         self.alpha_0 = np.array([1,1,1])
@@ -180,38 +172,20 @@ class Controller:
         # self.max_throttle = 0.96
         
         self.gravity = np.array([0, 0, 9.8])
-        self.pre_time = rospy.get_time()    
+        self.pre_time1 = rospy.get_time()   
+        self.pre_time2 =  rospy.get_time() 
         # self.data_out = PlotDataMsg()
 
         # Publishers
-        self.att_pub = rospy.Publisher('mavros/setpoint_attitude/attitude', PoseStamped, queue_size=10)
-        self.thrust_pub = rospy.Publisher('mavros/setpoint_attitude/thrust', Thrust, queue_size=10)
+        # self.att_pub = rospy.Publisher('mavros/setpoint_attitude/attitude', PoseStamped, queue_size=10)
+        # self.thrust_pub = rospy.Publisher('mavros/setpoint_attitude/thrust', Thrust, queue_size=10)
         # self.odom_pub = rospy.Subscriber('mavros/local_position/odom', Odometry, self.odomCb)
 
         # Torque publisher
         self.df_pub = rospy.Publisher('drone_force/DFTorque', Float64, queue_size=10)
 
-        self.df_p = 0
-        self.df_q = 0
-        self.df_r = 0
         self.df_T = 0
-
-        self.df_p = 0
-        self.df_q = 0
-        self.df_r = 0
-        self.df_T = 0
-
-        self.df_p_dot = 0
-        self.df_q_dot = 0
-        self.df_r_dot = 0
-
-        self.df_x = 0
-        self.df_y = 0
-        self.df_z = 0
-
-        self.df_x_dot = 0
-        self.df_y_dot = 0
-        self.df_z_dot = 0
+        
         # self.data_pub = rospy.Publisher('/data_out', PlotDataMsg, queue_size=10)
         self.armed = False
 
@@ -222,12 +196,6 @@ class Controller:
             [1,1,-1,1],
             [-1,-1,-1,1],
         ]
-
-    # Callbacks
-
-
-
-	# def multiDoFCb(self, msg):
 
     def multiDoFCb(self, msg):
         pt = msg.points[0]
@@ -261,7 +229,8 @@ class Controller:
         # self.sp.position.z = self.local_pos.z
 
     def odomCb(self, msg):
-        print(f"odomCb: {msg.pose.pose.position.z}")
+        print(f"odomCb z: {msg.pose.pose.position.z}")
+
         self.cur_pose.pose.position.x = msg.pose.pose.position.x
         self.cur_pose.pose.position.y = msg.pose.pose.position.y
         self.cur_pose.pose.position.z = msg.pose.pose.position.z
@@ -279,7 +248,7 @@ class Controller:
         self.cur_vel.twist.angular.y = msg.twist.twist.angular.y
         self.cur_vel.twist.angular.z = msg.twist.twist.angular.z
 
-        return msg.pose
+        # return msg.pose
 
 
     def newPoseCB(self, msg):
@@ -309,8 +278,8 @@ class Controller:
             return s/v
 
     def th_des(self):
-        dt = rospy.get_time() - self.pre_time
-        self.pre_time = self.pre_time + dt
+        dt = rospy.get_time() - self.pre_time1
+        self.pre_time1 = self.pre_time1 + dt
         if dt > 0.04:
             dt = 0.04
 
@@ -320,7 +289,6 @@ class Controller:
 
         errPos = curPos - desPos
         errVel = curVel - self.desVel
-        # print(errPos)
         sv = errVel + np.multiply(self.Phi, errPos)
 
         if self.armed:
@@ -340,7 +308,6 @@ class Controller:
         delTau[2] = Rho[2]*self.sigmoid(sv[2],self.v)
 
         des_th = -np.multiply(self.Lam, sv) - delTau + self.M*self.gravity
-        # print((des_th))
 
         # putting limit on maximum thrust vector
         if np.linalg.norm(des_th) > self.max_th:
@@ -350,7 +317,7 @@ class Controller:
         # print(f"Des Pose: {desPos}")
         print(f"Err Pose: {errPos}")
         # print(f"Thrust cmd: {self.df_cmd.data}")
-        
+    
         return des_th
 
     def acc2quat(self, des_th, des_yaw):
@@ -404,8 +371,7 @@ class Controller:
 
         thrust = self.norm_thrust_const * des_th.dot(zb_curr)
         thrust = np.maximum(0.0, np.minimum(thrust, self.max_throttle))
-        # self.thrust_cmd.thrust = thrust
-
+     
         angle_error_matrix = 0.5 * (np.multiply(np.transpose(rot_des), rot_curr) -
                                     np.multiply(np.transpose(rot_curr), rot_des) ) #skew matrix
  
@@ -413,6 +379,8 @@ class Controller:
         pitch_y_err = angle_error_matrix[0,2]
         yaw_z_err = -angle_error_matrix[0,1]
 
+
+        # Put minus if unable ot tune after multiple runs
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
         self.des_q_dot = np.array([0 ,0, 0])
@@ -430,8 +398,8 @@ class Controller:
     def moment_des(self):
         self.geo_con_new()
 
-        dt = rospy.get_time() - self.pre_time
-        self.pre_time = self.pre_time + dt
+        dt = rospy.get_time() - self.pre_time2
+        self.pre_time2 = self.pre_time2 + dt
         if dt > 0.04:
             dt = 0.04
 
@@ -439,7 +407,7 @@ class Controller:
         self.max_mom = 10
         self.max_mom_throttle = 0.33
 
-        self.Lam_q = np.array([5.0, 5.0, 1.0])
+        self.Lam_q = np.array([10.0, 10.0, 5.0])
         self.Phi_q = np.array([1.1, 1.1, 1.0])
         
         self.alpha_0_q = np.array([1,1,1])
@@ -457,10 +425,13 @@ class Controller:
 
         Rho_q = self.Kp0_q + self.Kp1_q*self.euler_err
 
+        #Multiply minus everywhere is unable ot tune
         delTau_q = np.zeros(3)
         delTau_q[0] = Rho_q[0]*self.sigmoid(sv_q[0],self.v)
         delTau_q[1] = Rho_q[1]*self.sigmoid(sv_q[1],self.v)
         delTau_q[2] = Rho_q[2]*self.sigmoid(sv_q[2],self.v)
+
+
 
         des_mom = -np.multiply(self.Lam_q, sv_q) - delTau_q
 
@@ -476,7 +447,7 @@ class Controller:
 
     def torque_to_PWM(self, value):
         # Preset maps for Torque to PWM
-        fromMin, fromMax, toMin, toMax = -1.5, 1.5, 1000, 2000
+        fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
         # Snap input value to the PWM range
         if(value>fromMax):
             value = fromMax
@@ -594,29 +565,7 @@ def main(argv):
 
             # print(f"CA: {self.CA}\n")
             # print(f"CA inv: {self.CA_inv}\n")
-
-            cnt.df_p = commander.master.attitude.roll
-            cnt.df_q = commander.master.attitude.pitch
-            cnt.df_r = commander.master.attitude.yaw
-            # cnt.df_T = commander.master.location.global_relative_frame.alt
-
-            cnt.df_p_dot = commander.master._rollspeed
-            cnt.df_q_dot = commander.master._pitchspeed
-            cnt.df_r_dot = commander.master._yawspeed
-
-            cnt.df_x = commander.master.location.local_frame.north
-            cnt.df_y = commander.master.location.local_frame.east
-            cnt.df_z = commander.master.location.local_frame.down
-
-            cnt.df_x_dot = commander.master.velocity[0]
-            cnt.df_y_dot = commander.master.velocity[1]
-            cnt.df_z_dot = commander.master.velocity[2]
-
-            print(f"DF Pos: {cnt.df_x, cnt.df_y, cnt.df_z}")
-            print(f"DF Pos Rate: {cnt.df_x_dot, cnt.df_y_dot, cnt.df_z_dot}")
-
-            print(f"DF Ang: {cnt.df_p, cnt.df_q, cnt.df_r}")
-            print(f"DF Ang Rate: {cnt.df_p_dot, cnt.df_q_dot, cnt.df_r_dot}")
+            cnt.df_T = commander.master.location.global_relative_frame.alt
 
             print(f"Torq: {Torq}")
             print(f"u inputs: {u_input}")

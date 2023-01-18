@@ -11,7 +11,7 @@ def map_range(value, leftMin, leftMax, rightMin, rightMax):
 
 def torque_to_PWM(value, motor):
     # Preset maps for Torque to PWM
-    fromMin, fromMax, toMin, toMax = 0, 50, 1000, 2000
+    fromMin, fromMax, toMin, toMax = -10, 10, 1000, 2000
     # Snap input value to the PWM range
     if(value>fromMax):
         value = fromMax

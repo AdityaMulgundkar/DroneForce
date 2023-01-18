@@ -101,7 +101,7 @@ if __name__ == '__main__':
                 des_pitch = 0
                 des_roll = 0
                 des_yaw = 0
-                des_z = 1
+                des_z = 10
 
                 Tp_des = 0
                 Tq_des = 0
@@ -113,7 +113,7 @@ if __name__ == '__main__':
                 # pid_q is pitch
                 # pid_r is yaw
                 # pid_T is Thrust
-                pid_p = PID(0.035, 0.0, 0.025)
+                pid_p = PID(0.05, 0.0, 0.025)
                 pid_q = PID(0.035, 0.0, 0.025)
                 pid_r = PID(0.15, 0.01, 0.1)
                 # Manually tuned behaviour

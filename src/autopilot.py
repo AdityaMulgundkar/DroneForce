@@ -9,7 +9,7 @@ class DFAutopilot:
     def __init__(self, connection_string, *args, **kwargs):
         logging.debug('connecting to Drone (or SITL/HITL) on: %s', connection_string)
         self.alive = True
-        self.master = connect(connection_string, wait_ready=True)
+        self.master = connect(connection_string, wait_ready=True, rate=20)
         self.mavutil = mavutil.mavlink_connection('127.0.0.1:14552')
         # Add a heartbeat listener
         # Func for heartbeat
