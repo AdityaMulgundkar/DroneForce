@@ -11,6 +11,7 @@ import sys
 import rospy
 
 import tf.transformations as transformations
+# from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 from std_msgs.msg import Float64
 # from std_msgs.msg import Float64MultiArray
@@ -149,8 +150,8 @@ class Controller:
         self.Kp0 =  np.array([0.1, 0.1, 0.1])
         self.Kp1 =  np.array([0.1, 0.1, 0.1])
 
-        self.Lam = np.array([2.0, 2.0, 3.0])
-        self.Phi = np.array([1.5, 1.5, 1.1])
+        self.Lam = np.array([2.0, 2.0, 5.0])
+        self.Phi = np.array([1.1, 1.1, 1.0])
         
         self.alpha_0 = np.array([1,1,1])
         self.alpha_1 = np.array([3,3,3])
@@ -160,7 +161,7 @@ class Controller:
         self.Kp1_q = np.array([0.1, 0.1, 0.1])
 
         self.M = 0.1
-        self.alpha_m = 0.01
+        self.alpha_m = 0.05
         self.v = 0.1
 
         self.norm_thrust_const = 0.06
@@ -229,7 +230,7 @@ class Controller:
         # self.sp.position.z = self.local_pos.z
 
     def odomCb(self, msg):
-        print(f"odomCb z: {msg.pose.pose.position.z}")
+        # print(f"odomCb z: {msg.pose.pose.position.z}")
 
         self.cur_pose.pose.position.x = msg.pose.pose.position.x
         self.cur_pose.pose.position.y = msg.pose.pose.position.y
@@ -356,6 +357,10 @@ class Controller:
 
 
     def geo_con_new(self):
+
+
+
+        
         pose = transformations.quaternion_matrix(  
                 numpy.array([self.cur_pose.pose.orientation.x, 
                              self.cur_pose.pose.orientation.y, 
@@ -365,35 +370,54 @@ class Controller:
         rot_curr = np.delete(pose_temp1, -1, axis=0)   #3*3 current rotation matrix
         zb_curr = rot_curr[:,2]
 
+        orientation_q = self.cur_pose.pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (roll_curr, pitch_curr, yaw_curr) = euler_from_quaternion (orientation_list)
+
         #---------------------------------------------#
         des_th = self.th_des()    
-        rot_des = self.acc2quat(des_th, 0.0)   #desired yaw = 0
+        rot_des = self.acc2quat(des_th, 1.55)   #desired yaw = 0
+        rot_44 = np.vstack((np.hstack((rot_des,np.array([[0,0,0]]).T)), np.array([[0,0,0,1]])))
+        quat_des = quaternion_from_matrix(rot_44)
+
+        orientation_list = [quat_des[0], quat_des[1], quat_des[2], quat_des[3]]
+        (roll_des, pitch_des, yaw_des) = euler_from_quaternion (orientation_list)
+
+        # roll_des = -rot_des[1,2]
+        # pitch_des = rot_des[0,2]
+        # yaw_des = -rot_des[0,1]
+
+        roll_err = roll_curr - roll_des
+        pitch_err = -(pitch_curr - pitch_des)
+        yaw_err = -(yaw_curr - yaw_des)
+
+        # print(f"roll-pitch-yaw curr: {roll_curr, pitch_curr, yaw_curr}")
+        # print(f"roll-pitch-yaw des: {roll_des*10000, pitch_des*10000, yaw_des*10000}")        
+        print(f"roll-pitch-yaw errs: {roll_err*1, pitch_err*1, yaw_err*1}")
 
         thrust = self.norm_thrust_const * des_th.dot(zb_curr)
         thrust = np.maximum(0.0, np.minimum(thrust, self.max_throttle))
      
-        angle_error_matrix = 0.5 * (np.multiply(np.transpose(rot_des), rot_curr) -
-                                    np.multiply(np.transpose(rot_curr), rot_des) ) #skew matrix
+        # angle_error_matrix = 0.5 * (np.multiply(np.transpose(rot_des), rot_curr) -
+        #                             np.multiply(np.transpose(rot_curr), rot_des) ) #skew matrix
  
         # roll_x_err = -angle_error_matrix[1,2]
-        # pitch_y_err = angle_error_matrix[0,2] 
+        # pitch_y_err = angle_error_matrix[0,2]   
         # yaw_z_err = -angle_error_matrix[0,1]
 
-        roll_x_err = angle_error_matrix[1,2]
-        pitch_y_err = -angle_error_matrix[0,2]   #Minus sign added by amitabh
-        yaw_z_err = -angle_error_matrix[0,1]
-
-
         # Put minus if unable ot tune after multiple runs
-        self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
+        # self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
+
+        self.euler_err = np.array([roll_err, pitch_err, yaw_err])
+        
 
         self.des_q_dot = np.array([0 ,0, 0])
         des_euler_rate =  np.dot(np.multiply(np.transpose(rot_des), rot_curr), 
                                      self.des_q_dot)
 
         curr_euler_rate = np.array([self.cur_vel.twist.angular.x,
-                                    self.cur_vel.twist.angular.y,
-                                    self.cur_vel.twist.angular.z])
+                                    -self.cur_vel.twist.angular.y,
+                                    -self.cur_vel.twist.angular.z])
 
         self.euler_rate_err = curr_euler_rate - des_euler_rate
 
@@ -411,13 +435,13 @@ class Controller:
         self.max_mom = 10
         self.max_mom_throttle = 0.33
 
-        self.Lam_q = np.array([3.0, 3.0, 2.0])
-        self.Phi_q = np.array([1.1, 1.1, 1.0])
+        self.Lam_q = np.array([5.0, 5.0, 5.0])
+        self.Phi_q = np.array([1.1, 1.1, 1.1])
         
         self.alpha_0_q = np.array([1,1,1])
         self.alpha_1_q = np.array([3,3,3])
 
-        print(f"Euler err: {self.euler_err}")
+        # print(f"Euler err: {self.euler_err*10000}")
         # self.euler_rate_err = np.array([0,0,0])
         sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
 
@@ -429,15 +453,12 @@ class Controller:
 
         Rho_q = self.Kp0_q + self.Kp1_q*self.euler_err
 
-        #Multiply minus everywhere if unable to tune
         delTau_q = np.zeros(3)
         delTau_q[0] = Rho_q[0]*self.sigmoid(sv_q[0],self.v)
         delTau_q[1] = Rho_q[1]*self.sigmoid(sv_q[1],self.v)
-        delTau_q[2] = -Rho_q[2]*self.sigmoid(sv_q[2],self.v)
+        delTau_q[2] = Rho_q[2]*self.sigmoid(sv_q[2],self.v)
 
-
-
-        des_mom = -np.multiply(self.Lam_q, sv_q) - delTau_q
+        des_mom = - np.multiply(self.Lam_q, sv_q)  - delTau_q
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
@@ -483,7 +504,7 @@ def main(argv):
     rospy.init_node('setpoint_node', anonymous=True)
     modes = fcuModes()  #flight modes
     cnt = Controller()  # controller object
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(15)
     rospy.Subscriber('mavros/state', State, cnt.stateCb)
     rospy.Subscriber('mavros/local_position/odom', Odometry, cnt.odomCb)
 
