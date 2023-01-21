@@ -162,7 +162,7 @@ class Controller:
 
         # Tuning for outer
         self.Lam = np.array([0.2, 0.2, 2.0])
-        self.Phi = np.array([1.1, 1.1, 1.1])   #1.0 - 1.5
+        self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         
         self.M = 0.1
         self.alpha_m = 0.01  # 0.01 - 0.05
@@ -181,12 +181,13 @@ class Controller:
 
         # Tuning for inner
         self.Lam_q = np.array([1.0, 1.0, 1.0])
-        self.Phi_q = np.array([1.1, 1.1, 1.1])   #1.0 - 1.5
+        self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         
         # Close Tuning for outer
-        self.norm_moment_const = 0.03
+        self.norm_moment_const = 0.05
         self.max_mom = 10
-        self.max_mom_throttle = 0.33
+        # self.max_mom_throttle = 0.33
+        self.max_mom_throttle = 0.5
 
 
         self.v = 0.1
@@ -400,7 +401,7 @@ class Controller:
 
         #---------------------------------------------#
         des_th = self.th_des()    
-        rot_des = self.acc2quat(des_th, 1.55)   #desired yaw = 0
+        rot_des = self.acc2quat(des_th, 0)   #desired yaw = 0
         rot_44 = np.vstack((np.hstack((rot_des,np.array([[0,0,0]]).T)), np.array([[0,0,0,1]])))
         quat_des = quaternion_from_matrix(rot_44)
 
@@ -423,17 +424,23 @@ class Controller:
         thrust = self.norm_thrust_const * des_th.dot(zb)
         thrust = np.maximum(0.0, np.minimum(thrust, self.max_throttle))
      
-        # angle_error_matrix = 0.5 * (np.multiply(np.transpose(rot_des), rot_curr) -
-        #                             np.multiply(np.transpose(rot_curr), rot_des) ) #skew matrix
+        angle_error_matrix = 0.5* (np.dot(np.transpose(rot_des), rot_curr) -
+                                    np.dot(np.transpose(rot_curr), rot_des) ) #skew matrix
  
         # roll_x_err = -angle_error_matrix[1,2]
         # pitch_y_err = angle_error_matrix[0,2]   
         # yaw_z_err = -angle_error_matrix[0,1]
 
+        roll_x_err = -angle_error_matrix[1,2]
+        pitch_y_err = -angle_error_matrix[0,2]   
+        yaw_z_err = angle_error_matrix[0,1]
+
         # Put minus if unable ot tune after multiple runs
         # self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
-        self.euler_err = np.array([roll_err, pitch_err, yaw_err])
+        print(f"angle_errors: {roll_x_err, pitch_y_err, yaw_z_err}")
+
+        self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
         
 
         self.des_q_dot = np.array([0 ,0, 0])
