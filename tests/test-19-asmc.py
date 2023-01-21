@@ -5,6 +5,13 @@ mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0
 python3 sim_vehicle.py -v ArduCopter --vehicle=ArduCopter --frame=X
 roslaunch mavros apm.launch fcu_url:=udp://:14553
 """
+"""
+mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
+sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
+roslaunch mavros apm.launch fcu_url:=udp://:14553@
+gazebo --verbose iris_ardupilot.world
+python3 test-19-asmc.py 
+"""
 
 import sys
 # ROS python API
@@ -150,23 +157,39 @@ class Controller:
         self.Kp0 =  np.array([0.1, 0.1, 0.1])
         self.Kp1 =  np.array([0.1, 0.1, 0.1])
 
-        self.Lam = np.array([2.0, 2.0, 5.0])
-        self.Phi = np.array([1.1, 1.1, 1.0])
-        
         self.alpha_0 = np.array([1,1,1])
         self.alpha_1 = np.array([3,3,3])
+
+        # Tuning for outer
+        self.Lam = np.array([0.2, 0.2, 2.0])
+        self.Phi = np.array([1.1, 1.1, 1.1])   #1.0 - 1.5
+        
+        self.M = 0.1
+        self.alpha_m = 0.01  # 0.01 - 0.05
+        # Close Tuning for outer
+
+        self.norm_thrust_const = 0.06
+        self.max_th = 18.0
+        self.max_throttle = 0.95
 
         # Control parameters for the inner loop
         self.Kp0_q = np.array([0.1, 0.1, 0.1])
         self.Kp1_q = np.array([0.1, 0.1, 0.1])
 
-        self.M = 0.1
-        self.alpha_m = 0.05
-        self.v = 0.1
+        self.alpha_0_q = np.array([1,1,1])
+        self.alpha_1_q = np.array([3,3,3])
 
-        self.norm_thrust_const = 0.06
-        self.max_th = 18.0
-        self.max_throttle = 1.0
+        # Tuning for inner
+        self.Lam_q = np.array([1.0, 1.0, 1.0])
+        self.Phi_q = np.array([1.1, 1.1, 1.1])   #1.0 - 1.5
+        
+        # Close Tuning for outer
+        self.norm_moment_const = 0.03
+        self.max_mom = 10
+        self.max_mom_throttle = 0.33
+
+
+        self.v = 0.1
 
         # self.norm_thrust_const = 0.06
         # self.max_th = 16.0
@@ -291,6 +314,8 @@ class Controller:
         errPos = curPos - desPos
         errVel = curVel - self.desVel
         sv = errVel + np.multiply(self.Phi, errPos)
+        # sv =  errPos
+
 
         if self.armed:
             self.Kp0 += (sv - np.multiply(self.alpha_0, self.Kp0))*dt
@@ -308,7 +333,9 @@ class Controller:
         delTau[1] = Rho[1]*self.sigmoid(sv[1],self.v)
         delTau[2] = Rho[2]*self.sigmoid(sv[2],self.v)
 
-        des_th = -np.multiply(self.Lam, sv) - delTau + self.M*self.gravity
+        # des_th = -np.multiply(self.Lam, sv) - delTau + self.M*self.gravity
+        des_th = -np.multiply(self.Lam, sv) 
+
 
         # putting limit on maximum thrust vector
         if np.linalg.norm(des_th) > self.max_th:
@@ -358,9 +385,6 @@ class Controller:
 
     def geo_con_new(self):
 
-
-
-        
         pose = transformations.quaternion_matrix(  
                 numpy.array([self.cur_pose.pose.orientation.x, 
                              self.cur_pose.pose.orientation.y, 
@@ -395,7 +419,8 @@ class Controller:
         # print(f"roll-pitch-yaw des: {roll_des*10000, pitch_des*10000, yaw_des*10000}")        
         print(f"roll-pitch-yaw errs: {roll_err*1, pitch_err*1, yaw_err*1}")
 
-        thrust = self.norm_thrust_const * des_th.dot(zb_curr)
+        zb = rot_des[:,2]
+        thrust = self.norm_thrust_const * des_th.dot(zb)
         thrust = np.maximum(0.0, np.minimum(thrust, self.max_throttle))
      
         # angle_error_matrix = 0.5 * (np.multiply(np.transpose(rot_des), rot_curr) -
@@ -430,16 +455,6 @@ class Controller:
         self.pre_time2 = self.pre_time2 + dt
         if dt > 0.04:
             dt = 0.04
-
-        self.norm_moment_const = 0.03
-        self.max_mom = 10
-        self.max_mom_throttle = 0.33
-
-        self.Lam_q = np.array([5.0, 5.0, 5.0])
-        self.Phi_q = np.array([1.1, 1.1, 1.1])
-        
-        self.alpha_0_q = np.array([1,1,1])
-        self.alpha_1_q = np.array([3,3,3])
 
         # print(f"Euler err: {self.euler_err*10000}")
         # self.euler_rate_err = np.array([0,0,0])
@@ -487,6 +502,9 @@ class Controller:
 
         # Convert the 0-1 range into a value in the to range.
         val = int(toMin + (valueScaled * toSpan))
+        # Rishabh - clip PWM max value
+        # if(val>1700):
+            # val = 1700
         return val
 
     def pub_att(self):
