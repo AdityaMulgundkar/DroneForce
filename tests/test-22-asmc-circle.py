@@ -81,7 +81,7 @@ class Controller:
         self.alpha_1 = np.array([3,3,3])
 
         # Tuning for outer
-        self.Lam = np.array([0.2, 0.2, 10.0])
+        self.Lam = np.array([0.5, 1.0, 20.0])
         self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         
         self.M = 0.5
@@ -100,7 +100,7 @@ class Controller:
         self.alpha_1_q = np.array([3,3,3])
 
         # Tuning for inner
-        self.Lam_q = np.array([1.0, 1.0, 1.0])
+        self.Lam_q = np.array([2.0, 2.0, 2.0])
         self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         # Close Tuning for inner
 
