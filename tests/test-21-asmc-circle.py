@@ -426,11 +426,11 @@ def main(argv):
                 if(angle > 3.14/2):
                     is_faulty = True
                     cnt.EA = [
-                            [-0.9,0.9,0.9,0.9],
-                            # [-1,1,1,1],
-                            [1,-1,0.9,1],
-                            [1,1,-0.9,1],
-                            [-1,-1,-0.9,1],
+                            # [-0.9,0.9,0.9,0.9],
+                            [-1,1,1,1],
+                            [1,-1,1,1],
+                            [1,1,-1,1],
+                            [-1,-1,-1,1],
                         ]
                 curr_x = cnt.cur_pose.pose.position.x
                 curr_y =cnt.cur_pose.pose.position.y
