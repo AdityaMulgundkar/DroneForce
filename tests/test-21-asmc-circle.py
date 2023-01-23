@@ -7,13 +7,13 @@ roslaunch mavros apm.launch fcu_url:=udp://:14553
 """
 """
 1. mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
-2. ~/df_ws/src/ardupilot/Tools/autotest
+2. cd ~/df_ws/src/ardupilot/Tools/autotest
 sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
 3. roslaunch mavros apm.launch fcu_url:=udp://:14553@
-4. ~/df_ws/src/ardupilot_gazebo/worlds$ 
+4. cd ~/df_ws/src/ardupilot_gazebo/worlds 
 gazebo --verbose iris_ardupilot.world
-5. ~/df_ws/src/DroneForce/tests
-python3 test-19-asmc.py 
+5. cd ~/df_ws/src/DroneForce/tests
+python3 test-21-asmc-circle.py 
 """
 
 import sys
@@ -62,7 +62,7 @@ class Controller:
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
         self.sp.pose.position.y = 0.0
-        self.ALT_SP = 1.0
+        self.ALT_SP = 10.0
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
         self.local_quat = np.array([0.0, 0.0, 0.0, 1.0])
@@ -166,11 +166,11 @@ class Controller:
         self.cur_vel.twist.angular.z = msg.twist.twist.angular.z
 
     def newPoseCB(self, msg):
-        if(self.sp.pose.position != msg.pose.position):
-            x = msg.pose.position.x
-            y = msg.pose.position.y
-            z = msg.pose.position.z
-            print(f"New pose received: {x, y, z}")
+        # if(self.sp.pose.position != msg.pose.position):
+        #     x = msg.pose.position.x
+        #     y = msg.pose.position.y
+        #     z = msg.pose.position.z
+        #     print(f"New pose received: {x, y, z}")
         self.sp.pose.position.x = msg.pose.position.x
         self.sp.pose.position.y = msg.pose.position.y
         self.sp.pose.position.z = msg.pose.position.z
@@ -413,11 +413,22 @@ def main(argv):
             DFFlag = False
         
         while not rospy.is_shutdown():
+            is_faulty = False
             # Generate trajectory point
             r = 3
             if(time.time() - last_time  > trajectory_timer):
                 next_sp = PoseStamped()
                 angle = angle + angle_delta
+                # if(angle > 3.14):
+                if(angle > 3.14):
+                    is_faulty = True
+                    cnt.EA = [
+                            [-0.9,0.9,0.9,0.9],
+                            # [-1,1,1,1],
+                            [1,-1,0.9,1],
+                            [1,1,-0.9,1],
+                            [-1,-1,-0.9,1],
+                        ]
                 curr_x = cnt.cur_pose.pose.position.x
                 curr_y =cnt.cur_pose.pose.position.y
                 curr_z =cnt.sp.pose.position.z
@@ -428,6 +439,8 @@ def main(argv):
                 next_sp.pose.position.z = curr_z
                 next_sp.pose.orientation = cnt.cur_pose.pose.orientation
                 cnt.newPoseCB(next_sp)
+
+                print(f"Fault: {is_faulty}, setpoint: {x, y, curr_z}")
                 last_time = time.time()
 
             # Send attitude commands
@@ -437,9 +450,9 @@ def main(argv):
             Torq = [Tp, Tq, Tr, T]
 
             # Compute CA matrix
-            cnt.CA = np.linalg.pinv(cnt.EA)
-            cnt.CA_inv = np.linalg.pinv(cnt.CA)
-            cnt.CA_inv = np.round(cnt.CA_inv, 5)
+            # cnt.CA = np.linalg.pinv(cnt.EA)
+            # cnt.CA_inv = np.linalg.pinv(cnt.CA)
+            # cnt.CA_inv = np.round(cnt.CA_inv, 5)
             u_input = np.matmul(cnt.EA, Torq)
 
             # Convert motor torque (input u) to PWM
