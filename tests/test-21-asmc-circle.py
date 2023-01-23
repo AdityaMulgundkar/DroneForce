@@ -403,9 +403,9 @@ def main(argv):
     connection_string = '127.0.0.1:14554'
     DFFlag = True
 
-    trajectory_timer = 0.25
+    trajectory_timer = 0.5
     angle = 0
-    angle_delta = 0.05
+    angle_delta = 0.01
     last_time = time.time()
 
     with DFAutopilot(connection_string=connection_string) as commander:
