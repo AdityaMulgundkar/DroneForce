@@ -418,7 +418,7 @@ def main(argv):
         while not rospy.is_shutdown():
             is_faulty = False
             # Generate trajectory point
-            r = 10
+            r = 3
             if(time.time() - last_time  > trajectory_timer):
                 next_sp = PoseStamped()
                 angle = angle + angle_delta
