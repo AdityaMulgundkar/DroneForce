@@ -13,3 +13,9 @@
     - trajectory_timer = 0.25
     - angle_delta = 0.05
     - EA with M0 at 90% eff
+- 2023-01-23-21-50-31.bag
+    - ASMC in circle path with 
+    - trajectory_timer = 0.25
+    - angle_delta = 0.05
+    - EA with M0 at 90% eff
+    - Added faulty flag and desired_position data

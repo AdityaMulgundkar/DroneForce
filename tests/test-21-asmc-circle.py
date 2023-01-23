@@ -24,7 +24,7 @@ import rospy
 import tf.transformations as transformations
 # from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Bool
 # from std_msgs.msg import Float64MultiArray
 
 # 3D point & Stamped Pose msgs
@@ -376,6 +376,8 @@ def main(argv):
     rospy.Subscriber('new_pose', PoseStamped, cnt.newPoseCB)
     rospy.Subscriber('command/trajectory', Mdjt, cnt.multiDoFCb)
     sp_pub = rospy.Publisher('mavros/setpoint_position/local', PoseStamped, queue_size=10)
+    des_pub = rospy.Publisher('desired_position', PoseStamped, queue_size=10)
+    fault_pub = rospy.Publisher('fault', Bool, queue_size=10)
     rate.sleep()
 
     print("ARMING")
@@ -388,6 +390,7 @@ def main(argv):
     k=0
     while k<20:
         sp_pub.publish(cnt.sp)
+        fault_pub.publish(False)
         rate.sleep()
         k = k + 1
 
@@ -420,7 +423,7 @@ def main(argv):
                 next_sp = PoseStamped()
                 angle = angle + angle_delta
                 # if(angle > 3.14):
-                if(angle > 3.14):
+                if(angle > 3.14/2):
                     is_faulty = True
                     cnt.EA = [
                             [-0.9,0.9,0.9,0.9],
@@ -439,7 +442,9 @@ def main(argv):
                 next_sp.pose.position.z = curr_z
                 next_sp.pose.orientation = cnt.cur_pose.pose.orientation
                 cnt.newPoseCB(next_sp)
+                des_pub.publish(next_sp)
 
+                fault_pub.publish(is_faulty)
                 print(f"Fault: {is_faulty}, setpoint: {x, y, curr_z}")
                 last_time = time.time()
 
