@@ -6,14 +6,18 @@ python3 sim_vehicle.py -v ArduCopter --vehicle=ArduCopter --frame=X
 roslaunch mavros apm.launch fcu_url:=udp://:14553
 """
 """
-mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
+1. mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
+2. ~/df_ws/src/ardupilot/Tools/autotest
 sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
-roslaunch mavros apm.launch fcu_url:=udp://:14553@
+3. roslaunch mavros apm.launch fcu_url:=udp://:14553@
+4. ~/df_ws/src/ardupilot_gazebo/worlds$ 
 gazebo --verbose iris_ardupilot.world
+5. ~/df_ws/src/DroneForce/tests
 python3 test-19-asmc.py 
 """
 
 import sys
+import time
 # ROS python API
 import rospy
 
@@ -163,7 +167,10 @@ class Controller:
 
     def newPoseCB(self, msg):
         if(self.sp.pose.position != msg.pose.position):
-            print("New pose received")
+            x = msg.pose.position.x
+            y = msg.pose.position.y
+            z = msg.pose.position.z
+            print(f"New pose received: {x, y, z}")
         self.sp.pose.position.x = msg.pose.position.x
         self.sp.pose.position.y = msg.pose.position.y
         self.sp.pose.position.z = msg.pose.position.z
@@ -224,7 +231,7 @@ class Controller:
 
         # print(f"Current Pose: {curPos}")
         # print(f"Des Pose: {desPos}")
-        print(f"Err Pose: {errPos}")
+        # print(f"Err Pose: {errPos}")
         # print(f"Thrust cmd: {self.df_cmd.data}")
     
         return des_th
@@ -269,7 +276,7 @@ class Controller:
         pitch_err = -(pitch_curr - pitch_des)
         yaw_err = -(yaw_curr - yaw_des)
 
-        print(f"roll-pitch-yaw errs: {roll_err*1, pitch_err*1, yaw_err*1}")
+        # print(f"roll-pitch-yaw errs: {roll_err*1, pitch_err*1, yaw_err*1}")
 
         zb = rot_des[:,2]
         thrust = self.norm_thrust_const * des_th.dot(zb)
@@ -285,7 +292,7 @@ class Controller:
         # Put minus if unable ot tune after multiple runs
         # self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
-        print(f"angle_errors: {roll_x_err, pitch_y_err, yaw_z_err}")
+        # print(f"angle_errors: {roll_x_err, pitch_y_err, yaw_z_err}")
 
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
@@ -393,6 +400,11 @@ def main(argv):
     connection_string = '127.0.0.1:14554'
     DFFlag = True
 
+    trajectory_timer = 0.25
+    angle = 0
+    angle_delta = 0.05
+    last_time = time.time()
+
     with DFAutopilot(connection_string=connection_string) as commander:
         if(DFFlag):
             for i in range(1,4):
@@ -401,6 +413,24 @@ def main(argv):
             DFFlag = False
         
         while not rospy.is_shutdown():
+            # Generate trajectory point
+            r = 3
+            if(time.time() - last_time  > trajectory_timer):
+                next_sp = PoseStamped()
+                angle = angle + angle_delta
+                curr_x = cnt.cur_pose.pose.position.x
+                curr_y =cnt.cur_pose.pose.position.y
+                curr_z =cnt.sp.pose.position.z
+                x = (r * math.sin(angle))
+                y = (r * math.cos(angle))
+                next_sp.pose.position.x = x
+                next_sp.pose.position.y = y
+                next_sp.pose.position.z = curr_z
+                next_sp.pose.orientation = cnt.cur_pose.pose.orientation
+                cnt.newPoseCB(next_sp)
+                last_time = time.time()
+
+            # Send attitude commands
             cnt.pub_att()
             Tp, Tq, Tr = cnt.torq_cmd
             T = cnt.th_cmd
@@ -425,10 +455,10 @@ def main(argv):
                 commander.set_servo(i, PWM)
                 i = i+1
 
-            print(f"Torq: {Torq}")
-            print(f"u inputs: {u_input}")
+            # print(f"Torq: {Torq}")
+            # print(f"u inputs: {u_input}")
             # print(f"Sensor inputs: {roll, pitch, yaw, z}")
-            print(f"PWM outputs: {PWM_out_values}\n")
+            # print(f"PWM outputs: {PWM_out_values}\n")
             rate.sleep()
 
 if __name__ == '__main__':
