@@ -142,6 +142,11 @@ class Controller:
         self.desVel = np.array([pt.velocities[0].linear.x, pt.velocities[0].linear.y, pt.velocities[0].linear.z])
         # self.desVel = np.array([pt.accelerations[0].linear.x, pt.accelerations[0].linear.y, pt.accelerations[0].linear.z])
 
+    def multiDoFCbNew(self, pos, vel):
+        self.sp = pos
+        self.desVel = vel
+        # self.desVel = np.array([pt.velocities[0].linear.x, pt.velocities[0].linear.y, pt.velocities[0].linear.z])
+
     ## local position callback
     def posCb(self, msg):
         self.local_pos.x = msg.pose.position.x
@@ -214,6 +219,7 @@ class Controller:
         self.errInt += errPos*dt
 
         des_th = (self.kPos*errPos) + (self.kVel*errVel) + (self.kInt*self.errInt)
+        self.desVel = 0
 
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
@@ -390,7 +396,7 @@ def main(argv):
 
     trajectory_timer = 0.25
     angle = 0
-    angle_delta = 0.025
+    angle_delta = 0.01
     last_time = time.time()
 
     with DFAutopilot(connection_string=connection_string) as commander:
@@ -432,7 +438,7 @@ def main(argv):
                 fault_pub.publish(is_faulty)
                 print(f"Fault: {is_faulty}, setpoint: {x, y, curr_z}")
                 last_time = time.time()
-                
+
             # Send attitude commands
             cnt.pub_att()
             Tp, Tq, Tr = cnt.torq_cmd
