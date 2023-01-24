@@ -50,3 +50,7 @@
     - ASMC in circle path
     - trajectory_timer = 0.5
     - angle_delta = 0.01
+- 2023-01-24-11-48-22.bag
+    - ASMC in circle path
+    - trajectory_timer = 0.5
+    - angle_delta = 0.01
