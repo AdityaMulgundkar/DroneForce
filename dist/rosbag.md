@@ -41,3 +41,8 @@
     - trajectory_timer = 0.5
     - angle_delta = 0.025
     - with new tuning params
+- 2023-01-24-11-07-31.bag
+    - ASMC in circle path
+    - trajectory_timer = 0.5
+    - angle_delta = 0.025
+    - with new tuning params
