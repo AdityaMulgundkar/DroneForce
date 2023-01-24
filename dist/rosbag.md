@@ -63,3 +63,9 @@
     - trajectory_timer = 0.25
     - angle_delta = 0.025
     - 30hz rospy rate
+- 2023-01-24-13-13-01.bag
+    - ASMC in circle path
+    - trajectory_timer = 0.25
+    - angle_delta = 0.025
+    - 30hz rospy rate
+    - added start setpoint

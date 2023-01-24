@@ -69,6 +69,11 @@ class Controller:
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
+        self.start_pose = PoseStamped()
+        self.start_pose.pose.position.x = 0.0
+        self.start_pose.pose.position.y = 0.0
+        self.start_pose.pose.position.z = self.ALT_SP
+
         # self.df_cmd = Float64(0)
         self.torq_cmd = np.array([0, 0, 0])
         self.th_cmd = np.array([0, 0, 0])
@@ -432,13 +437,13 @@ def main(argv):
                             [1,1,-1,1],
                             [-1,-1,-1,1],
                         ]
-                curr_x = cnt.cur_pose.pose.position.x
-                curr_y =cnt.cur_pose.pose.position.y
-                curr_z =cnt.sp.pose.position.z
+                curr_x = cnt.start_pose.pose.position.x
+                curr_y = cnt.start_pose.pose.position.y
+                curr_z = cnt.start_pose.pose.position.z
                 x = (r * math.sin(angle))
                 y = (r * math.cos(angle))
-                next_sp.pose.position.x = x
-                next_sp.pose.position.y = y
+                next_sp.pose.position.x = curr_x + x
+                next_sp.pose.position.y = curr_y + y
                 next_sp.pose.position.z = curr_z
                 next_sp.pose.orientation = cnt.cur_pose.pose.orientation
                 cnt.newPoseCB(next_sp)
