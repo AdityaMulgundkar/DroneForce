@@ -403,7 +403,7 @@ def main(argv):
     connection_string = '127.0.0.1:14554'
     DFFlag = True
 
-    trajectory_timer = 0.5
+    trajectory_timer = 0.25
     angle = 0
     angle_delta = 0.025
     last_time = time.time()
