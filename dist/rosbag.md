@@ -69,3 +69,8 @@
     - angle_delta = 0.025
     - 30hz rospy rate
     - added start setpoint
+- 2023-01-24-15-40-53.bag
+    - PID in circle path
+    - trajectory_timer = 0.25
+    - angle_delta = 0.025
+    - 15hz rospy rate

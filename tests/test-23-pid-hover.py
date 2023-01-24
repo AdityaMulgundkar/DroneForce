@@ -69,9 +69,9 @@ class Controller:
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
-        self.kPos = np.array([0.25, 0.25, 1.0])
+        self.kPos = np.array([0.25, 0.25, 4.0])
         self.kVel = 0.1
-        self.kInt = 0.01
+        self.kInt = np.array([0.01, 0.01, 0.1])
 
         self.start_pose = PoseStamped()
         self.start_pose.pose.position.x = 0.0
