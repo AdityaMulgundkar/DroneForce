@@ -58,3 +58,8 @@
     - ASMC in circle path
     - trajectory_timer = 0.25
     - angle_delta = 0.025
+- 2023-01-24-13-03-39.bag
+    - ASMC in circle path
+    - trajectory_timer = 0.25
+    - angle_delta = 0.025
+    - 30hz rospy rate

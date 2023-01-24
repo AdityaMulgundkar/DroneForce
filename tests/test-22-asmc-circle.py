@@ -81,8 +81,8 @@ class Controller:
         self.alpha_1 = np.array([3,3,3])
 
         # Tuning for outer
-        self.Lam = np.array([0.5, 0.4, 20.0])
-        self.Phi = np.array([1.2, 1.5, 2.5])   #1.0 - 1.5
+        self.Lam = np.array([0.2, 0.2, 10.0])
+        self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         
         self.M = 0.5
         self.alpha_m = 0.01  # 0.01 - 0.05
@@ -100,8 +100,8 @@ class Controller:
         self.alpha_1_q = np.array([3,3,3])
 
         # Tuning for inner
-        self.Lam_q = np.array([2.0, 4.0, 2.0])
-        self.Phi_q = np.array([1.1, 1.5, 1.1])   #1.0 - 1.5
+        self.Lam_q = np.array([1.0, 1.0, 1.0])
+        self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         # Close Tuning for inner
 
         self.norm_moment_const = 0.05
@@ -192,8 +192,8 @@ class Controller:
     def th_des(self):
         dt = rospy.get_time() - self.pre_time1
         self.pre_time1 = self.pre_time1 + dt
-        if dt > 0.04:
-            dt = 0.04
+        if dt > 0.02:
+            dt = 0.02
 
         curPos = self.vector2Arrays(self.cur_pose.pose.position)
         desPos = self.vector2Arrays(self.sp.pose.position)
@@ -367,7 +367,7 @@ class Controller:
 def main(argv):
     rospy.init_node('setpoint_node', anonymous=True)
     cnt = Controller()  # controller object
-    rate = rospy.Rate(15)
+    rate = rospy.Rate(30)
     rospy.Subscriber('mavros/state', State, cnt.stateCb)
     rospy.Subscriber('mavros/local_position/odom', Odometry, cnt.odomCb)
 
