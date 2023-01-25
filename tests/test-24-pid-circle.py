@@ -224,7 +224,7 @@ class Controller:
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
     
-        print(f"Err Pose: {errPos}")
+        # print(f"Err Pose: {errPos}")
         return (-des_th + self.gravity)
 
     def acc2quat(self, des_th, des_yaw):
@@ -397,6 +397,7 @@ def main(argv):
     trajectory_timer = 0.25
     angle = 0
     angle_delta = 0.01
+    start_time = time.time()
     last_time = time.time()
 
     with DFAutopilot(connection_string=connection_string) as commander:
@@ -410,7 +411,7 @@ def main(argv):
             is_faulty = False
             # Generate trajectory point
             r = 3
-            if(time.time() - last_time  > trajectory_timer):
+            if (time.time() - last_time  > trajectory_timer) and (time.time() - start_time > 20):
                 next_sp = PoseStamped()
                 angle = angle + angle_delta
                 # if(angle > 3.14):
@@ -464,10 +465,10 @@ def main(argv):
                 commander.set_servo(i, PWM)
                 i = i+1
 
-            print(f"Torq: {Torq}")
-            print(f"u inputs: {u_input}")
+            # print(f"Torq: {Torq}")
+            # print(f"u inputs: {u_input}")
             # print(f"Sensor inputs: {roll, pitch, yaw, z}")
-            print(f"PWM outputs: {PWM_out_values}\n")
+            # print(f"PWM outputs: {PWM_out_values}\n")
             rate.sleep()
 
 if __name__ == '__main__':
