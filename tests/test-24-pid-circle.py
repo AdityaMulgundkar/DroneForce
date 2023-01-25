@@ -61,15 +61,15 @@ class Controller:
         self.cur_pose = PoseStamped()
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
-        self.sp.pose.position.y = 0.0
-        self.ALT_SP = 10.0
+        self.sp.pose.position.y = 3.0
+        self.ALT_SP = 3.0
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
         self.local_quat = np.array([0.0, 0.0, 0.0, 1.0])
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
-        self.kPos = np.array([0.25, 0.25, 4.0])
+        self.kPos = np.array([0.15, 0.15, 4.0])
         self.kVel = 0.1
         self.kInt = np.array([0.01, 0.01, 0.1])
 
@@ -219,7 +219,7 @@ class Controller:
         self.errInt += errPos*dt
 
         des_th = (self.kPos*errPos) + (self.kVel*errVel) + (self.kInt*self.errInt)
-        self.desVel = 0
+        # self.desVel = 0
 
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
@@ -396,9 +396,11 @@ def main(argv):
 
     trajectory_timer = 0.25
     angle = 0
-    angle_delta = 0.01
+    angle_delta = 0.005
     start_time = time.time()
     last_time = time.time()
+
+    pre_time1 = 0
 
     with DFAutopilot(connection_string=connection_string) as commander:
         if(DFFlag):
@@ -409,13 +411,18 @@ def main(argv):
         
         while not rospy.is_shutdown():
             is_faulty = False
+            dt = rospy.get_time() - pre_time1
+            pre_time1 = pre_time1 + dt
+            if dt > 0.04:
+                dt = 0.04
+
             # Generate trajectory point
             r = 3
-            if (time.time() - last_time  > trajectory_timer) and (time.time() - start_time > 20):
+            if (time.time() - last_time  > trajectory_timer) and (time.time() - start_time > 1):
                 next_sp = PoseStamped()
                 angle = angle + angle_delta
                 # if(angle > 3.14):
-                if(angle > 3.14/2):
+                if(angle > 3.14):
                     is_faulty = True
                     cnt.EA = [
                             # [-0.9,0.9,0.9,0.9],
@@ -429,11 +436,33 @@ def main(argv):
                 curr_z = cnt.start_pose.pose.position.z
                 x = (r * math.sin(angle))
                 y = (r * math.cos(angle))
-                next_sp.pose.position.x = curr_x + x
-                next_sp.pose.position.y = curr_y + y
+                next_sp.pose.position.x = x
+                next_sp.pose.position.y = y
                 next_sp.pose.position.z = curr_z
-                next_sp.pose.orientation = cnt.cur_pose.pose.orientation
+
+                # err_or = (cnt.cur_pose.pose.orientation) - (cnt.sp.pose.orientation)
+
+                q1 = next_sp.pose.orientation
+                ol1 = [q1.x, q1.y, q1.z, q1.w]
+                (r1, p1, y1) = euler_from_quaternion(ol1)
+                
+                q2 = cnt.sp.pose.orientation
+                ol2 = [q2.x, q2.y, q2.z, q2.w]
+                (r2, p2, y2) = euler_from_quaternion(ol2)
+
+                yerr = y2 - y1
+                quaternion = transformations.quaternion_from_euler(0, 0, yerr)
+                next_sp.pose.orientation.x = quaternion[0]
+                next_sp.pose.orientation.y = quaternion[1]
+                next_sp.pose.orientation.z = quaternion[2]
+                next_sp.pose.orientation.w = quaternion[3]
+
                 cnt.newPoseCB(next_sp)
+                curVel = cnt.vector2Arrays(cnt.cur_vel.twist.linear)
+                fv = curVel + cnt.th_cmd * dt
+                print(f"FV: {fv}")
+                # cnt.multiDoFCbNew(next_sp, fv)
+
                 des_pub.publish(next_sp)
 
                 fault_pub.publish(is_faulty)
