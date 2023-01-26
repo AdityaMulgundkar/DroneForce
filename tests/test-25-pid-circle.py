@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 """
-ASMC:
-mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
-python3 sim_vehicle.py -v ArduCopter --vehicle=ArduCopter --frame=X
-roslaunch mavros apm.launch fcu_url:=udp://:14553
-"""
-"""
 1. mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
 2. cd ~/df_ws/src/ardupilot/Tools/autotest
 sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
@@ -69,9 +63,13 @@ class Controller:
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
-        self.kPos = np.array([0.15, 0.15, 4.0])
-        self.kVel = 0.1
-        self.kInt = np.array([0.01, 0.01, 0.1])
+        self.kPos = np.array([0.2, 0.2, 4.0])
+        self.kVel = np.array([0.0, 0.0, 0.0])
+        self.kInt = np.array([0.0, 0.0, 0.0])
+
+        self.kPos_q = np.array([-0.0, -0.0, -0.0])
+        self.kVel_q = np.array([0.0, 0.0, 0.0])
+        self.kInt_q = np.array([0.0, 0.0, 0.0])
 
         self.start_pose = PoseStamped()
         self.start_pose.pose.position.x = 0.0
@@ -82,36 +80,9 @@ class Controller:
         self.torq_cmd = np.array([0, 0, 0])
         self.th_cmd = np.array([0, 0, 0])
 
-        # Control parameters for the outer loop
-        self.Kp0 =  np.array([0.1, 0.1, 0.1])
-        self.Kp1 =  np.array([0.1, 0.1, 0.1])
-
-        self.alpha_0 = np.array([1,1,1])
-        self.alpha_1 = np.array([3,3,3])
-
-        # Tuning for outer
-        self.Lam = np.array([0.2, 0.2, 10.0])
-        self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
-        
-        self.M = 0.5
-        self.alpha_m = 0.01  # 0.01 - 0.05
-        # Close Tuning for outer
-
         self.norm_thrust_const = 0.06
         self.max_th = 18.0
         self.max_throttle = 0.95
-
-        # Control parameters for the inner loop
-        self.Kp0_q = np.array([0.1, 0.1, 0.1])
-        self.Kp1_q = np.array([0.1, 0.1, 0.1])
-
-        self.alpha_0_q = np.array([1,1,1])
-        self.alpha_1_q = np.array([3,3,3])
-
-        # Tuning for inner
-        self.Lam_q = np.array([1.0, 1.0, 1.0])
-        self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
-        # Close Tuning for inner
 
         self.norm_moment_const = 0.05
         self.max_mom = 10
@@ -135,7 +106,14 @@ class Controller:
             ]
 
     def multiDoFCb(self, msg):
+        # print(f"multiDoFCb: {msg}")
         pt = msg.points[0]
+
+        x = pt.transforms[0].translation.x
+        y = pt.transforms[0].translation.y
+        z = pt.transforms[0].translation.z
+        print(f"New pose received: {x, y, z}")
+
         self.sp.pose.position.x = pt.transforms[0].translation.x
         self.sp.pose.position.y = pt.transforms[0].translation.y
         self.sp.pose.position.z = pt.transforms[0].translation.z
@@ -181,11 +159,10 @@ class Controller:
 
     def newPoseCB(self, msg):
         if(self.sp.pose.position != msg.pose.position):
-            x = msg.pose.orientation.x
-            y = msg.pose.orientation.y
-            z = msg.pose.orientation.z
-            w = msg.pose.orientation.w
-            print(f"New pose received: {x, y, z, w}")
+            x = msg.pose.position.x
+            y = msg.pose.position.y
+            z = msg.pose.position.z
+            print(f"New pose received: {x, y, z}")
         self.sp.pose.position.x = msg.pose.position.x
         self.sp.pose.position.y = msg.pose.position.y
         self.sp.pose.position.z = msg.pose.position.z
@@ -213,19 +190,16 @@ class Controller:
         curPos = self.vector2Arrays(self.cur_pose.pose.position)
         desPos = self.vector2Arrays(self.sp.pose.position)
         curVel = self.vector2Arrays(self.cur_vel.twist.linear)
-        # curOr = self.vector2Arrays(self.cur_pose.pose.orientation)
 
         errPos = curPos - desPos
         errVel = curVel - self.desVel
         self.errInt += errPos*dt
 
         des_th = (self.kPos*errPos) + (self.kVel*errVel) + (self.kInt*self.errInt)
-        # self.desVel = 0
 
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
     
-        # print(f"Err Pose: {errPos}")
         return (-des_th + self.gravity)
 
     def acc2quat(self, des_th, des_yaw):
@@ -249,26 +223,9 @@ class Controller:
                              self.cur_pose.pose.orientation.w]))  #4*4 matrix
         pose_temp1 = np.delete(pose, -1, axis=1)
         rot_curr = np.delete(pose_temp1, -1, axis=0)   #3*3 current rotation matrix
-        zb_curr = rot_curr[:,2]
 
-        orientation_q = self.cur_pose.pose.orientation
-        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (roll_curr, pitch_curr, yaw_curr) = euler_from_quaternion (orientation_list)
-
-        #---------------------------------------------#
         des_th = self.th_des()    
         rot_des = self.acc2quat(des_th, 0)   #desired yaw = 0
-        rot_44 = np.vstack((np.hstack((rot_des,np.array([[0,0,0]]).T)), np.array([[0,0,0,1]])))
-        quat_des = quaternion_from_matrix(rot_44)
-
-        orientation_list = [quat_des[0], quat_des[1], quat_des[2], quat_des[3]]
-        (roll_des, pitch_des, yaw_des) = euler_from_quaternion (orientation_list)
-
-        roll_err = roll_curr - roll_des
-        pitch_err = -(pitch_curr - pitch_des)
-        yaw_err = -(yaw_curr - yaw_des)
-
-        # print(f"roll-pitch-yaw errs: {roll_err*1, pitch_err*1, yaw_err*1}")
 
         zb = rot_des[:,2]
         thrust = self.norm_thrust_const * des_th.dot(zb)
@@ -280,11 +237,6 @@ class Controller:
         roll_x_err = -angle_error_matrix[1,2]
         pitch_y_err = -angle_error_matrix[0,2]   
         yaw_z_err = angle_error_matrix[0,1]
-
-        # Put minus if unable ot tune after multiple runs
-        # self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
-
-        # print(f"angle_errors: {roll_x_err, pitch_y_err, yaw_z_err}")
 
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
@@ -308,24 +260,7 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
-        # print(f"Euler err: {self.euler_err*10000}")
-        # self.euler_rate_err = np.array([0,0,0])
-        sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
-
-        if self.armed:
-            self.Kp0_q += (sv_q - np.multiply(self.alpha_0_q, self.Kp0_q))*dt
-            self.Kp1_q += (sv_q - np.multiply(self.alpha_1_q, self.Kp1_q))*dt
-            self.Kp0_q = np.maximum(self.Kp0_q, 0.0001*np.ones(3))
-            self.Kp1_q = np.maximum(self.Kp1_q, 0.0001*np.ones(3))
-
-        Rho_q = self.Kp0_q + self.Kp1_q*self.euler_err
-
-        delTau_q = np.zeros(3)
-        delTau_q[0] = Rho_q[0]*self.sigmoid(sv_q[0],self.v)
-        delTau_q[1] = Rho_q[1]*self.sigmoid(sv_q[1],self.v)
-        delTau_q[2] = Rho_q[2]*self.sigmoid(sv_q[2],self.v)
-
-        des_mom = - np.multiply(self.Lam_q, sv_q)  - delTau_q
+        des_mom = (self.kPos_q*self.euler_err) + (self.kVel_q*self.euler_rate_err) + (self.kInt_q*self.euler_err*dt)
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
@@ -395,14 +330,6 @@ def main(argv):
     connection_string = '127.0.0.1:14554'
     DFFlag = True
 
-    trajectory_timer = 0.25
-    angle = 0
-    angle_delta = 0.005
-    start_time = time.time()
-    last_time = time.time()
-
-    pre_time1 = 0
-
     with DFAutopilot(connection_string=connection_string) as commander:
         if(DFFlag):
             for i in range(1,4):
@@ -411,69 +338,6 @@ def main(argv):
             DFFlag = False
         
         while not rospy.is_shutdown():
-            is_faulty = False
-            dt = rospy.get_time() - pre_time1
-            pre_time1 = pre_time1 + dt
-            if dt > 0.04:
-                dt = 0.04
-
-            # Generate trajectory point
-            r = 3
-            if (time.time() - last_time  > trajectory_timer) and (time.time() - start_time > 1):
-                next_sp = PoseStamped()
-                angle = angle + angle_delta
-                # if(angle > 3.14):
-                if(angle > 3.14):
-                    is_faulty = True
-                    cnt.EA = [
-                            # [-0.9,0.9,0.9,0.9],
-                            [-1,1,1,1],
-                            [1,-1,1,1],
-                            [1,1,-1,1],
-                            [-1,-1,-1,1],
-                        ]
-                curr_x = cnt.start_pose.pose.position.x
-                curr_y = cnt.start_pose.pose.position.y
-                curr_z = cnt.start_pose.pose.position.z
-                x = (r * math.sin(angle))
-                y = (r * math.cos(angle))
-                next_sp.pose.position.x = x
-                next_sp.pose.position.y = y
-                next_sp.pose.position.z = curr_z
-
-                # err_or = (cnt.cur_pose.pose.orientation) - (cnt.sp.pose.orientation)
-
-                x1 = cnt.cur_pose.pose.position.x
-                x2 = next_sp.pose.position.x
-
-                if(x2>x1):
-                    yerr = 0.2
-                elif(x2<x1):
-                    yerr = 0.2
-                else:
-                    yerr = 0
-                quaternion = transformations.quaternion_from_euler(0, 0, yerr)
-                next_sp.pose.orientation.x = quaternion[0]
-                next_sp.pose.orientation.y = quaternion[1]
-                next_sp.pose.orientation.z = quaternion[2]
-                next_sp.pose.orientation.w = quaternion[3]
-
-                # cnt.desVel = np.array([pt.velocities[0].linear.x, pt.velocities[0].linear.y, pt.velocities[0].linear.z])
-
-
-                cnt.newPoseCB(next_sp)
-                curVel = cnt.vector2Arrays(cnt.cur_vel.twist.linear)
-                fv = curVel + cnt.th_cmd * dt
-                cnt.desVel = fv
-                # print(f"FV: {fv}")
-                # cnt.multiDoFCbNew(next_sp, fv)
-
-                des_pub.publish(next_sp)
-
-                fault_pub.publish(is_faulty)
-                # print(f"Fault: {is_faulty}, setpoint: {x, y, curr_z}")
-                last_time = time.time()
-
             # Send attitude commands
             cnt.pub_att()
             Tp, Tq, Tr = cnt.torq_cmd

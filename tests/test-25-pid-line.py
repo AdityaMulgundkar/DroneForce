@@ -61,8 +61,8 @@ class Controller:
         self.cur_pose = PoseStamped()
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
-        self.sp.pose.position.y = 3.0
-        self.ALT_SP = 3.0
+        self.sp.pose.position.y = 0.0
+        self.ALT_SP = 10.0
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
         self.local_quat = np.array([0.0, 0.0, 0.0, 1.0])
@@ -180,12 +180,11 @@ class Controller:
         self.cur_vel.twist.angular.z = msg.twist.twist.angular.z
 
     def newPoseCB(self, msg):
-        if(self.sp.pose.position != msg.pose.position):
-            x = msg.pose.orientation.x
-            y = msg.pose.orientation.y
-            z = msg.pose.orientation.z
-            w = msg.pose.orientation.w
-            print(f"New pose received: {x, y, z, w}")
+        # if(self.sp.pose.position != msg.pose.position):
+        #     x = msg.pose.position.x
+        #     y = msg.pose.position.y
+        #     z = msg.pose.position.z
+        #     print(f"New pose received: {x, y, z}")
         self.sp.pose.position.x = msg.pose.position.x
         self.sp.pose.position.y = msg.pose.position.y
         self.sp.pose.position.z = msg.pose.position.z
@@ -397,11 +396,9 @@ def main(argv):
 
     trajectory_timer = 0.25
     angle = 0
-    angle_delta = 0.005
+    angle_delta = 0.05
     start_time = time.time()
     last_time = time.time()
-
-    pre_time1 = 0
 
     with DFAutopilot(connection_string=connection_string) as commander:
         if(DFFlag):
@@ -412,14 +409,9 @@ def main(argv):
         
         while not rospy.is_shutdown():
             is_faulty = False
-            dt = rospy.get_time() - pre_time1
-            pre_time1 = pre_time1 + dt
-            if dt > 0.04:
-                dt = 0.04
-
             # Generate trajectory point
-            r = 3
-            if (time.time() - last_time  > trajectory_timer) and (time.time() - start_time > 1):
+            r = 10
+            if (time.time() - last_time  > trajectory_timer) and (time.time() - start_time > 35):
                 next_sp = PoseStamped()
                 angle = angle + angle_delta
                 # if(angle > 3.14):
@@ -435,43 +427,19 @@ def main(argv):
                 curr_x = cnt.start_pose.pose.position.x
                 curr_y = cnt.start_pose.pose.position.y
                 curr_z = cnt.start_pose.pose.position.z
-                x = (r * math.sin(angle))
-                y = (r * math.cos(angle))
+                x = angle
+                y = curr_y
+                if(x>r):
+                    x = r
                 next_sp.pose.position.x = x
-                next_sp.pose.position.y = y
+                next_sp.pose.position.y = curr_y
                 next_sp.pose.position.z = curr_z
-
-                # err_or = (cnt.cur_pose.pose.orientation) - (cnt.sp.pose.orientation)
-
-                x1 = cnt.cur_pose.pose.position.x
-                x2 = next_sp.pose.position.x
-
-                if(x2>x1):
-                    yerr = 0.2
-                elif(x2<x1):
-                    yerr = 0.2
-                else:
-                    yerr = 0
-                quaternion = transformations.quaternion_from_euler(0, 0, yerr)
-                next_sp.pose.orientation.x = quaternion[0]
-                next_sp.pose.orientation.y = quaternion[1]
-                next_sp.pose.orientation.z = quaternion[2]
-                next_sp.pose.orientation.w = quaternion[3]
-
-                # cnt.desVel = np.array([pt.velocities[0].linear.x, pt.velocities[0].linear.y, pt.velocities[0].linear.z])
-
-
+                next_sp.pose.orientation = cnt.cur_pose.pose.orientation
                 cnt.newPoseCB(next_sp)
-                curVel = cnt.vector2Arrays(cnt.cur_vel.twist.linear)
-                fv = curVel + cnt.th_cmd * dt
-                cnt.desVel = fv
-                # print(f"FV: {fv}")
-                # cnt.multiDoFCbNew(next_sp, fv)
-
                 des_pub.publish(next_sp)
 
                 fault_pub.publish(is_faulty)
-                # print(f"Fault: {is_faulty}, setpoint: {x, y, curr_z}")
+                print(f"Fault: {is_faulty}, setpoint: {x, y, curr_z}")
                 last_time = time.time()
 
             # Send attitude commands
