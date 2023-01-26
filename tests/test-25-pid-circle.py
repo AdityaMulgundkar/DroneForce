@@ -64,12 +64,12 @@ class Controller:
         self.errInt = np.zeros(3)
 
         self.kPos = np.array([0.2, 0.2, 4.0])
-        self.kVel = np.array([0.0, 0.0, 0.0])
-        self.kInt = np.array([0.0, 0.0, 0.0])
+        self.kVel = np.array([0.001, 0.001, 0.001])
+        self.kInt = np.array([0.01, 0.01, 0.01])
 
-        self.kPos_q = np.array([-0.0, -0.0, -0.0])
-        self.kVel_q = np.array([0.0, 0.0, 0.0])
-        self.kInt_q = np.array([0.0, 0.0, 0.0])
+        self.kPos_q = np.array([2.0, 2.0, 0.5])
+        self.kVel_q = np.array([0.001, 0.001, 0.001])
+        self.kInt_q = np.array([0.01, 0.01, 0.01])
 
         self.start_pose = PoseStamped()
         self.start_pose.pose.position.x = 0.0
@@ -112,7 +112,7 @@ class Controller:
         x = pt.transforms[0].translation.x
         y = pt.transforms[0].translation.y
         z = pt.transforms[0].translation.z
-        print(f"New pose received: {x, y, z}")
+        # print(f"New pose received: {x, y, z}")
 
         self.sp.pose.position.x = pt.transforms[0].translation.x
         self.sp.pose.position.y = pt.transforms[0].translation.y
@@ -162,7 +162,7 @@ class Controller:
             x = msg.pose.position.x
             y = msg.pose.position.y
             z = msg.pose.position.z
-            print(f"New pose received: {x, y, z}")
+            # print(f"New pose received: {x, y, z}")
         self.sp.pose.position.x = msg.pose.position.x
         self.sp.pose.position.y = msg.pose.position.y
         self.sp.pose.position.z = msg.pose.position.z
@@ -238,7 +238,10 @@ class Controller:
         pitch_y_err = -angle_error_matrix[0,2]   
         yaw_z_err = angle_error_matrix[0,1]
 
+
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
+
+        print(f"Euler err: {self.euler_err}")
 
         self.des_q_dot = np.array([0 ,0, 0])
         des_euler_rate =  np.dot(np.multiply(np.transpose(rot_des), rot_curr), 
@@ -260,7 +263,7 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
-        des_mom = (self.kPos_q*self.euler_err) + (self.kVel_q*self.euler_rate_err) + (self.kInt_q*self.euler_err*dt)
+        des_mom = -(self.kPos_q*self.euler_err) - (self.kVel_q*self.euler_rate_err) - (self.kInt_q*self.euler_err*dt)
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
@@ -363,7 +366,7 @@ def main(argv):
                 commander.set_servo(i, PWM)
                 i = i+1
 
-            # print(f"Torq: {Torq}")
+            print(f"Torq: {Torq}")
             # print(f"u inputs: {u_input}")
             # print(f"Sensor inputs: {roll, pitch, yaw, z}")
             # print(f"PWM outputs: {PWM_out_values}\n")
