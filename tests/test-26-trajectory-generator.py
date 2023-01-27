@@ -70,6 +70,7 @@ def main(argv):
 
     sp_pub = rospy.Publisher('command/trajectory', Mdjt, queue_size=10)
     des_pub = rospy.Publisher('desired_position', PoseStamped, queue_size=10)
+    fault_pub = rospy.Publisher('fault', Bool, queue_size=10)
 
     trajectory_timer = 0.25
     angle = 0
@@ -80,9 +81,10 @@ def main(argv):
     pre_time1 = 0
 
     radius = 3
-
+    is_faulty = False
 
     while not rospy.is_shutdown():
+        is_faulty = False
         if (time.time() - last_time  > trajectory_timer):
             dt = rospy.get_time() - pre_time1
             pre_time1 = pre_time1 + dt
@@ -91,6 +93,12 @@ def main(argv):
 
             angle = angle + angle_delta
 
+            if(angle > 3.14/4):
+                is_faulty = True
+            else:
+                is_faulty = False
+
+            # print(f"is_faulty: {is_faulty}")
             curr_x = curr_sp.pose.position.x
             curr_y = curr_sp.pose.position.y
             curr_z = curr_sp.pose.position.z
@@ -134,7 +142,7 @@ def main(argv):
             vy = (y2 - y1)/dt
             vz = (z2 - z1)/dt
 
-            clip = 0.015
+            clip = 0.05
             if(vx>clip):
                 vx = clip
             elif(vx<-clip):
@@ -163,14 +171,13 @@ def main(argv):
 
             next_mdjt.points.insert(1, next_mdjtP)
 
-
-            print(f"Publishing dt: {dt}, val: {next_mdjtP.velocities}")
+            # print(f"Publishing dt: {dt}, val: {next_mdjtP.velocities}")
 
             # multiDoFCb(next_mdjt)
             sp_pub.publish(next_mdjt)
             des_pub.publish(next_sp)
+            fault_pub.publish(is_faulty)
             last_time = time.time()
-
             
         rate.sleep()
         # rospy.spin()
