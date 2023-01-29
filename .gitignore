@@ -127,3 +127,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+dist/asmc_circle_rosbag.asv

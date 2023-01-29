@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 """
 1. mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
-2. cd ~/df_ws/src/ardupilot/Tools/autotest
-sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
-3. roslaunch mavros apm.launch fcu_url:=udp://:14553@
-4. cd ~/df_ws/src/ardupilot_gazebo/worlds 
+2. cd ~/df_ws/src/ardupilot_gazebo/worlds 
 gazebo --verbose iris_ardupilot.world
-5. cd ~/df_ws/src/DroneForce/tests
-python3 test-21-asmc-circle.py 
+3. cd ~/df_ws/src/DroneForce/tests
+python3 test-26-trajectory-generator.py
+4. cd ~/df_ws/src/ardupilot/Tools/autotest
+sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
+5. roslaunch mavros apm.launch fcu_url:=udp://:14553@
+6. rosbag record -a
+7. cd ~/df_ws/src/DroneForce/tests
+python3 test-26-pid-hold.py
 """
 
 import sys
@@ -63,11 +66,11 @@ class Controller:
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
-        self.kPos = np.array([0.2, 0.2, 4.0])
+        self.kPos = np.array([0.25, 0.25, 4.0])
         self.kVel = np.array([0.001, 0.001, 0.001])
         self.kInt = np.array([0.01, 0.01, 0.01])
 
-        self.kPos_q = np.array([4.0, 4.0, 0.5])
+        self.kPos_q = np.array([1.0, 1.0, 0.1])
         self.kVel_q = np.array([0.001, 0.001, 0.001])
         self.kInt_q = np.array([0.01, 0.01, 0.01])
 
@@ -207,6 +210,7 @@ class Controller:
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
     
+        print(f"Err Pose: {errPos}")
         return (-des_th + self.gravity)
 
     def acc2quat(self, des_th, des_yaw):
@@ -248,7 +252,7 @@ class Controller:
 
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
-        # print(f"Euler err: {self.euler_err}")
+        print(f"Euler err: {self.euler_err}")
 
         self.des_q_dot = np.array([0 ,0, 0])
         des_euler_rate =  np.dot(np.multiply(np.transpose(rot_des), rot_curr), 
@@ -283,7 +287,7 @@ class Controller:
         
 
     def torque_to_PWM(self, value):
-        fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
+        fromMin, fromMax, toMin, toMax = 0, 1, 1000, 2000
         if(value>fromMax):
             value = fromMax
         if(value<fromMin):
@@ -365,15 +369,18 @@ def main(argv):
             # cnt.CA = np.linalg.pinv(cnt.EA)
             # cnt.CA_inv = np.linalg.pinv(cnt.CA)
             # cnt.CA_inv = np.round(cnt.CA_inv, 5)
-            if (time.time() - start_time > 20):
-                eff = 0.25
-                print(f"Motor efficiency down for M0, M1: {eff}")
+            if (time.time() - start_time > 30):
+                eff = 0.9
+                print(f"Motor efficiency down for M0: {eff}")
                 cnt.EA = [
                 [-1*eff,1*eff,1*eff,1*eff],
                 [1*eff,-1*eff,1*eff,1*eff],
                 [1,1,-1,1],
                 [-1,-1,-1,1],
                 ]
+                # cnt.kPos = np.array([1, 1, 4.0])
+                # cnt.kPos_q = np.array([3.0, 2.0, 0.1])
+                cnt.is_faulty = True
             u_input = np.matmul(cnt.EA, Torq)
 
             # Convert motor torque (input u) to PWM
