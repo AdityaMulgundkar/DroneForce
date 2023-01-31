@@ -86,8 +86,10 @@ class Controller:
         self.alpha_1 = np.array([3,3,3])
 
         # Tuning for outer
-        self.Lam = np.array([0.2, 0.2, 10.0])
-        self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
+        # self.Lam = np.array([0.1, 0.1, 10.0])
+        # self.Phi = np.array([1.1, 2.5, 1.1])   #1.0 - 1.5
+        self.Lam = np.array([0.2, 0.3, 10.0])
+        self.Phi = np.array([1.0, 1.2, 1.1])   #1.0 - 1.5
         
         self.M = 0.5
         self.alpha_m = 0.01  # 0.01 - 0.05
@@ -105,8 +107,9 @@ class Controller:
         self.alpha_1_q = np.array([3,3,3])
 
         # Tuning for inner
-        self.Lam_q = np.array([1.0, 1.0, 1.0])
-        self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
+        self.Lam_q = np.array([1.5, 2.5, 1.0])
+        # self.Lam_q = np.array([0.4, 0.4, 1.0])
+        self.Phi_q = np.array([1.0, 1.25, 1.1])   #1.0 - 1.5
         # Close Tuning for inner
 
         self.norm_moment_const = 0.05
@@ -236,8 +239,8 @@ class Controller:
 
         # print(f"Current Pose: {curPos}")
         # print(f"Des Pose: {desPos}")
-        print(f"Mult: {np.multiply(self.Lam, sv)}")
-        print(f"delTau: {delTau}")
+        # print(f"Mult: {np.multiply(self.Lam, sv)}")
+        # print(f"delTau: {delTau}")
         print(f"Err Pose: {errPos}")
         # print(f"Thrust cmd: {self.df_cmd.data}")
     
@@ -323,7 +326,7 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
-        print(f"Euler err: {self.euler_err*10000}")
+        # print(f"Euler err: {self.euler_err*10000}")
         # self.euler_rate_err = np.array([0,0,0])
         sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
 
@@ -409,6 +412,7 @@ def main(argv):
     # Trying to send actuator packets with DF
     connection_string = '127.0.0.1:14554'
     DFFlag = True
+    start_time = time.time()
 
     with DFAutopilot(connection_string=connection_string) as commander:
         if(DFFlag):
@@ -428,6 +432,18 @@ def main(argv):
             # cnt.CA = np.linalg.pinv(cnt.EA)
             # cnt.CA_inv = np.linalg.pinv(cnt.CA)
             # cnt.CA_inv = np.round(cnt.CA_inv, 5)
+            if (time.time() - start_time > 4000):
+                eff = 0.85
+                print(f"Motor efficiency down for M0: {eff}")
+                cnt.EA = [
+                [-1*eff,1*eff,1*eff,1*eff],
+                [1,-1,1,1*eff],
+                [1,1,-1,1*eff],
+                [-1,-1,-1,1*eff],
+                ]
+                # cnt.kPos = np.array([1, 1, 4.0])
+                # cnt.kPos_q = np.array([3.0, 2.0, 0.1])
+                cnt.is_faulty = True
             u_input = np.matmul(cnt.EA, Torq)
 
             # Convert motor torque (input u) to PWM

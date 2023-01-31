@@ -6,9 +6,10 @@ gazebo --verbose iris_ardupilot.world
 3. cd ~/df_ws/src/DroneForce/tests
 python3 test-26-trajectory-generator.py
 4. cd ~/df_ws/src/ardupilot/Tools/autotest
-sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
+python3 sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
 5. roslaunch mavros apm.launch fcu_url:=udp://:14553@
-6. rosbag record -a
+6. cd ~/df_ws/src/DroneForce/dist
+rosbag record -a
 7. cd ~/df_ws/src/DroneForce/tests
 python3 test-26-pid-hold.py
 """
@@ -66,11 +67,11 @@ class Controller:
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
-        self.kPos = np.array([0.25, 0.25, 4.0])
-        self.kVel = np.array([0.001, 0.001, 0.001])
+        self.kPos = np.array([1.0, 1.0, 16.0])
+        self.kVel = np.array([1.0, 1.0, 1.0])
         self.kInt = np.array([0.01, 0.01, 0.01])
 
-        self.kPos_q = np.array([1.0, 1.0, 0.1])
+        self.kPos_q = np.array([4.0, 4.0, 0.5])
         self.kVel_q = np.array([0.001, 0.001, 0.001])
         self.kInt_q = np.array([0.01, 0.01, 0.01])
 
@@ -287,7 +288,7 @@ class Controller:
         
 
     def torque_to_PWM(self, value):
-        fromMin, fromMax, toMin, toMax = 0, 1, 1000, 2000
+        fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
         if(value>fromMax):
             value = fromMax
         if(value<fromMin):
@@ -369,14 +370,14 @@ def main(argv):
             # cnt.CA = np.linalg.pinv(cnt.EA)
             # cnt.CA_inv = np.linalg.pinv(cnt.CA)
             # cnt.CA_inv = np.round(cnt.CA_inv, 5)
-            if (time.time() - start_time > 30):
-                eff = 0.9
+            if (time.time() - start_time > 40):
+                eff = 0.85
                 print(f"Motor efficiency down for M0: {eff}")
                 cnt.EA = [
                 [-1*eff,1*eff,1*eff,1*eff],
-                [1*eff,-1*eff,1*eff,1*eff],
-                [1,1,-1,1],
-                [-1,-1,-1,1],
+                [1,-1,1,1*eff],
+                [1,1,-1,1*eff],
+                [-1,-1,-1,1*eff],
                 ]
                 # cnt.kPos = np.array([1, 1, 4.0])
                 # cnt.kPos_q = np.array([3.0, 2.0, 0.1])

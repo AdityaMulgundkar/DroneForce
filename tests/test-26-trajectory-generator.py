@@ -74,7 +74,7 @@ def main(argv):
 
     trajectory_timer = 0.25
     angle = 0
-    angle_delta = 0.005
+    angle_delta = 0.015
     start_time = time.time()
     last_time = time.time()
 
