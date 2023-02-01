@@ -59,7 +59,7 @@ class Controller:
         self.cur_pose = PoseStamped()
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
-        self.sp.pose.position.y = 3.0
+        self.sp.pose.position.y = 0.0
         self.ALT_SP = 3.0
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
@@ -67,13 +67,17 @@ class Controller:
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
+        self.errInt_q = np.zeros(3)
+
         self.kPos = np.array([1.0, 1.0, 16.0])
         self.kVel = np.array([1.0, 1.0, 1.0])
         self.kInt = np.array([0.01, 0.01, 0.01])
+        # self.kInt = np.array([0.0, 0.0, 0.0])
 
-        self.kPos_q = np.array([4.0, 4.0, 0.5])
-        self.kVel_q = np.array([0.001, 0.001, 0.001])
+        self.kPos_q = np.array([4.0, 4.0, 1.0])
+        self.kVel_q = np.array([1.0, 1.0, 1.0])
         self.kInt_q = np.array([0.01, 0.01, 0.01])
+        # self.kInt_q = np.array([0.0, 0.0, 0.0])
 
         self.start_pose = PoseStamped()
         self.start_pose.pose.position.x = 0.0
@@ -206,7 +210,7 @@ class Controller:
         errVel = curVel - self.desVel
         self.errInt += errPos*dt
 
-        des_th = (self.kPos*errPos) + (self.kVel*errVel) + (self.kInt*self.errInt)
+        des_th = np.multiply(self.kPos, errPos) + np.multiply(self.kVel,errVel) + np.multiply(self.kInt, self.errInt)
 
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
@@ -275,7 +279,9 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
-        des_mom = -(self.kPos_q*self.euler_err) - (self.kVel_q*self.euler_rate_err) - (self.kInt_q*self.euler_err*dt)
+        self.errInt_q += self.euler_err*dt
+
+        des_mom = -(self.kPos_q*self.euler_err) - (self.kVel_q*self.euler_rate_err) - (self.kInt_q*self.errInt_q)
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
