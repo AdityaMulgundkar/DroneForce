@@ -78,12 +78,6 @@ class Controller:
         self.torq_cmd = np.array([0, 0, 0])
         self.th_cmd = np.array([0, 0, 0])
 
-        # Control parameters for the outer loop
-        # self.Kp0 =  np.array([0.1, 0.1, 0.1])
-        # self.Kp1 =  np.array([0.1, 0.1, 0.1])
-        # self.alpha_0 = np.array([1,1,1])
-        # self.alpha_1 = np.array([3,3,3])
-
         self.Kp0_ = 0.1
         self.Kp1_ = 0.1
         self.alpha_0_ = 10.0
@@ -102,16 +96,16 @@ class Controller:
         self.max_th = 18.0
         self.max_throttle = 0.95
 
-        # Control parameters for the inner loop
-        # self.Kp0_q = np.array([0.1, 0.1, 0.1])
-        # self.Kp1_q = np.array([0.1, 0.1, 0.1])
-        # self.alpha_0_q = np.array([1,1,1])
-        # self.alpha_1_q = np.array([3,3,3])
+        self.Kp0_q_ = 0.1
+        self.Kp1_q_ = 0.1
+        self.Kp2_q_ = 0.1
+        self.alpha_0_q_ = 10.0
+        self.alpha_1_q_ = 10.0
+        self.alpha_2_q_ = 10.0
 
         # Tuning for inner
-        # self.Lam_q = np.array([1.0, 1.0, 1.0])
-        # self.Lam_q = np.array([0.4, 0.4, 1.0])
-        # self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
+        self.Lam_q = np.array([0.4, 0.4, 1.0])
+        self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         # Close Tuning for inner
 
         self.norm_moment_const = 0.05
@@ -244,31 +238,9 @@ class Controller:
         delTau[1] = self.sigmoid(sv[1],self.v)
         delTau[2] = self.sigmoid(sv[2],self.v)
 
-        # if sv_norm >= self.epsilon:
-        #     delTau = np.multiply(Rho, sv)/sv_norm
-
-        # if sv_norm < self.epsilon:
-        #     delTau = np.multiply(Rho, sv)/self.epsilon
-
-        # if self.armed:
-        #     self.Kp0 += (np.abs(sv) - np.multiply(self.alpha_0, self.Kp0))*dt
-        #     self.Kp1 += (np.abs(sv) - np.multiply(self.alpha_1, self.Kp1))*dt
-        #     self.Kp0 = np.maximum(self.Kp0, 0.0001*np.ones(3))
-        #     self.Kp1 = np.maximum(self.Kp1, 0.0001*np.ones(3))
-        #     self.M += (-sv[2] - self.alpha_m*self.M)*dt
-        #     self.M = np.maximum(self.M, 0.1)
-        # Rho = self.Kp0 + self.Kp1*errPos
-
-        # delTau = np.zeros(3)
-        # delTau[0] = Rho[0]*self.sigmoid(sv[0],self.v)
-        # delTau[1] = Rho[1]*self.sigmoid(sv[1],self.v)
-        # delTau[2] = Rho[2]*self.sigmoid(sv[2],self.v)
-
         des_th = -np.multiply(self.Lam, sv) - np.array([0.1, 0.1, 0.1])*(delTau*Rho) + self.M*self.gravity
         print(" term 1" ,-np.multiply(self.Lam, sv))
         print(" term 2" ,-delTau*Rho)
-        # des_th = -np.multiply(self.Lam, sv)
-
 
         # putting limit on maximum thrust vector
         if np.linalg.norm(des_th) > self.max_th:
@@ -304,26 +276,9 @@ class Controller:
                              self.cur_pose.pose.orientation.w]))  #4*4 matrix
         pose_temp1 = np.delete(pose, -1, axis=1)
         rot_curr = np.delete(pose_temp1, -1, axis=0)   #3*3 current rotation matrix
-        zb_curr = rot_curr[:,2]
 
-        orientation_q = self.cur_pose.pose.orientation
-        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (roll_curr, pitch_curr, yaw_curr) = euler_from_quaternion (orientation_list)
-
-        #---------------------------------------------#
         des_th = self.th_des()    
         rot_des = self.acc2quat(des_th, 0)   #desired yaw = 0
-        rot_44 = np.vstack((np.hstack((rot_des,np.array([[0,0,0]]).T)), np.array([[0,0,0,1]])))
-        quat_des = quaternion_from_matrix(rot_44)
-
-        orientation_list = [quat_des[0], quat_des[1], quat_des[2], quat_des[3]]
-        (roll_des, pitch_des, yaw_des) = euler_from_quaternion (orientation_list)
-
-        roll_err = roll_curr - roll_des
-        pitch_err = -(pitch_curr - pitch_des)
-        yaw_err = -(yaw_curr - yaw_des)
-
-        # print(f"roll-pitch-yaw errs: {roll_err*1, pitch_err*1, yaw_err*1}")
 
         zb = rot_des[:,2]
         thrust = self.norm_thrust_const * des_th.dot(zb)
@@ -335,11 +290,6 @@ class Controller:
         roll_x_err = -angle_error_matrix[1,2]
         pitch_y_err = -angle_error_matrix[0,2]   
         yaw_z_err = angle_error_matrix[0,1]
-
-        # Put minus if unable ot tune after multiple runs
-        # self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
-
-        # print(f"angle_errors: {roll_x_err, pitch_y_err, yaw_z_err}")
 
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
@@ -363,26 +313,33 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
-        # print(f"Euler err: {self.euler_err*10000}")
-        # sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
+        sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
+        # sv =  np.multiply(sv, test_array)
+        zi_q = np.concatenate([self.euler_err, self.euler_rate_err])
+        zi_norm_q = np.linalg.norm(zi_q)
+        sv_norm_q = np.linalg.norm(sv_q)
 
-        # if self.armed:
-        #     self.Kp0_q += (np.abs(sv_q) - np.multiply(self.alpha_0_q, self.Kp0_q))*dt
-        #     self.Kp1_q += (np.abs(sv_q) - np.multiply(self.alpha_1_q, self.Kp1_q))*dt
-        #     self.Kp0_q = np.maximum(self.Kp0_q, 0.0001*np.ones(3))
-        #     self.Kp1_q = np.maximum(self.Kp1_q, 0.0001*np.ones(3))
+        if zi_norm_q > 5:
+            zi_norm_q = 5
 
-        # Rho_q = self.Kp0_q + self.Kp1_q*self.euler_err
+        if self.armed:
+            self.Kp0_q_ += (sv_norm_q - (self.alpha_0_q_*self.Kp0_q_))*dt
+            self.Kp1_q_ += (sv_norm_q*zi_norm_q - (self.alpha_1_q_*self.Kp1_q_))*dt
+            self.Kp2_q_ += (sv_norm_q*np.power(zi_norm_q, 2) - (self.alpha_2_q_*self.Kp2_q_))*dt
+            self.Kp0_q_ = np.maximum(self.Kp0_q_, 0.0001)
+            self.Kp1_q_ = np.maximum(self.Kp1_q_, 0.0001)
+            self.Kp2_q_ = np.maximum(self.Kp2_q_, 0.0001)
+            self.M += (-sv_q[2] - self.alpha_m*self.M)*dt
+            self.M = np.maximum(self.M, 0.1)
 
-        # delTau_q = np.zeros(3)
-        # delTau_q[0] = Rho_q[0]*self.sigmoid(sv_q[0],self.v)
-        # delTau_q[1] = Rho_q[1]*self.sigmoid(sv_q[1],self.v)
-        # delTau_q[2] = Rho_q[2]*self.sigmoid(sv_q[2],self.v)
+        Rho_q = self.Kp0_q_ + self.Kp1_q_*zi_norm_q + self.Kp2_q_*zi_norm_q 
 
-        # des_mom = - np.multiply(self.Lam_q, sv_q)  - delTau_q
+        delTau_q = np.zeros(3)
+        delTau_q[0] = self.sigmoid(sv_q[0],self.v)
+        delTau_q[1] = self.sigmoid(sv_q[1],self.v)
+        delTau_q[2] = self.sigmoid(sv_q[2],self.v)
 
-        self.errInt_q += self.euler_err*dt
-        des_mom = -(self.kPos_q*self.euler_err) - (self.kVel_q*self.euler_rate_err) - (self.kInt_q*self.errInt_q)
+        des_mom = - np.multiply(self.Lam_q, sv_q)  - np.array([0.1, 0.1, 0.1])*(delTau_q*Rho_q)
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
@@ -392,7 +349,6 @@ class Controller:
 
         moment = np.maximum(-self.max_mom_throttle, np.minimum(des_mom, self.max_mom_throttle))
         self.torq_cmd = moment
-        
 
     def torque_to_PWM(self, value):
         fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
