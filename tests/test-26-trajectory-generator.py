@@ -72,7 +72,7 @@ def main(argv):
     des_pub = rospy.Publisher('desired_position', PoseStamped, queue_size=10)
     fault_pub = rospy.Publisher('fault', Bool, queue_size=10)
 
-    trajectory_timer = 0.25
+    trajectory_timer = 0.1
     angle = 0
     angle_delta = 0.015
     start_time = time.time()
