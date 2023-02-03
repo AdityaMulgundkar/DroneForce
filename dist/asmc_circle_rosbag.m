@@ -34,8 +34,19 @@
 !bag = rosbag('2023-01-30-16-43-40.bag');
 
 !bag = rosbag('2023-01-31-13-01-21.bag');
-bag = rosbag('2023-01-31-20-27-10.bag');
+!bag = rosbag('2023-01-31-20-27-10.bag');
 
+!ASMC-circle-3
+!bag = rosbag('2023-02-03-15-56-27.bag');
+
+!ASMC-circle-4
+!bag = rosbag('2023-02-03-16-28-50.bag');
+
+!ASMC-circle-5-f
+!bag = rosbag('2023-02-03-17-12-17.bag');
+
+!ASMC-circle-6-f
+bag = rosbag('2023-02-03-17-37-30.bag');
 
 bSel = select(bag,'Topic','/mavros/local_position/pose');
 
