@@ -84,9 +84,8 @@ class Controller:
         self.alpha_1_ = 10.0
 
         # Tuning for outer
-
-        self.Lam = np.array([1.3, 1.3, 10.0])
-        self.Phi = np.array([1.05, 1.05, 1.1])   #1.0 - 1.5
+        self.Lam = np.array([1.0, 1.0, 10.0])
+        self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
         
         self.M = 0.5
         self.alpha_m = 0.01  # 0.01 - 0.05
@@ -99,13 +98,14 @@ class Controller:
         self.Kp0_q_ = 0.1
         self.Kp1_q_ = 0.1
         self.Kp2_q_ = 0.1
-        self.alpha_0_q_ = 10.0
-        self.alpha_1_q_ = 10.0
-        self.alpha_2_q_ = 10.0
+        self.alpha_0_q_ = 1
+        self.alpha_1_q_ = 1
+        self.alpha_2_q_ = 1
 
         # Tuning for inner
-        self.Lam_q = np.array([0.4, 0.4, 1.0])
-        self.Phi_q = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
+        # self.Lam_q = np.array([0.21, 0.15, 0.08])
+        self.Lam_q = np.array([2.0, 2.0, 2.0])
+        self.Phi_q = np.array([1.5, 1.5, 1.5])   #1.0 - 1.5
         # Close Tuning for inner
 
         self.norm_moment_const = 0.05
@@ -113,7 +113,10 @@ class Controller:
         # self.max_mom_throttle = 0.33
         self.max_mom_throttle = 0.5
 
-        self.v = 0.1
+        self.v = 1.0
+        self.v_q = 1.0
+        self.epsilon = 0.001
+        self.epsilon_q = 0.1
 
         self.kPos_q = np.array([4.0, 4.0, 1.0])
         self.kVel_q = np.array([1.0, 1.0, 1.0])
@@ -234,13 +237,17 @@ class Controller:
         Rho = self.Kp0_ + self.Kp1_*zi_norm 
 
         delTau = np.zeros(3)
-        delTau[0] = self.sigmoid(sv[0],self.v)
-        delTau[1] = self.sigmoid(sv[1],self.v)
-        delTau[2] = self.sigmoid(sv[2],self.v)
+        # delTau[0] = self.sigmoid(sv[0],self.v)
+        # delTau[1] = self.sigmoid(sv[1],self.v)
+        # delTau[2] = self.sigmoid(sv[2],self.v)
+        if(sv_norm >= self.epsilon):
+            delTau = np.multiply(Rho, sv)/sv_norm
+        if(sv_norm < self.epsilon):
+            delTau = np.multiply(Rho, sv)/self.epsilon
 
         des_th = -np.multiply(self.Lam, sv) - np.array([0.1, 0.1, 0.1])*(delTau*Rho) + self.M*self.gravity
-        print(" term 1" ,-np.multiply(self.Lam, sv))
-        print(" term 2" ,-delTau*Rho)
+        # print(" term 1" ,-np.multiply(self.Lam, sv))
+        # print(" term 2" ,-delTau*Rho)
 
         # putting limit on maximum thrust vector
         if np.linalg.norm(des_th) > self.max_th:
@@ -313,6 +320,7 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
+        # print(f"Euler err: {self.euler_err}")
         sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
         # sv =  np.multiply(sv, test_array)
         zi_q = np.concatenate([self.euler_err, self.euler_rate_err])
@@ -335,11 +343,18 @@ class Controller:
         Rho_q = self.Kp0_q_ + self.Kp1_q_*zi_norm_q + self.Kp2_q_*zi_norm_q 
 
         delTau_q = np.zeros(3)
-        delTau_q[0] = self.sigmoid(sv_q[0],self.v)
-        delTau_q[1] = self.sigmoid(sv_q[1],self.v)
-        delTau_q[2] = self.sigmoid(sv_q[2],self.v)
+        delTau_q[0] = self.sigmoid(sv_q[0],self.v_q)
+        delTau_q[1] = self.sigmoid(sv_q[1],self.v_q)
+        delTau_q[2] = self.sigmoid(sv_q[2],self.v_q)
+        # if(sv_norm_q >= self.epsilon_q):
+        #     delTau_q = np.multiply(Rho_q, sv_q)/sv_norm_q
+        # if(sv_norm_q < self.epsilon_q):
+        #     delTau_q = np.multiply(Rho_q, sv_q)/self.epsilon_q
 
-        des_mom = - np.multiply(self.Lam_q, sv_q)  - np.array([0.1, 0.1, 0.1])*(delTau_q*Rho_q)
+        # PID inner
+        self.errInt_q += self.euler_err*dt
+        des_mom = -(self.kPos_q*self.euler_err) - (self.kVel_q*self.euler_rate_err) - (self.kInt_q*self.errInt_q)
+        # End PID inner
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
@@ -348,7 +363,29 @@ class Controller:
         des_mom = self.norm_moment_const * des_mom
 
         moment = np.maximum(-self.max_mom_throttle, np.minimum(des_mom, self.max_mom_throttle))
-        self.torq_cmd = moment
+
+        des_mom_asmc = - np.multiply(self.Lam_q, sv_q) - np.array([0.1, 0.1, 0.1])*(delTau_q*Rho_q)
+        # des_mom_asmc = - np.array([1, 1, 1])*(delTau_q*Rho_q)
+        # des_mom_asmc = - np.multiply(self.Lam_q, sv_q)
+        # putting limit on maximum vector
+
+        if np.linalg.norm(des_mom_asmc) > self.max_mom:
+            des_mom_asmc = (self.max_mom/np.linalg.norm(des_mom_asmc))*des_mom_asmc
+
+        des_mom_asmc = self.norm_moment_const * des_mom_asmc
+
+        moment_asmc = np.maximum(-self.max_mom_throttle, np.minimum(des_mom_asmc, self.max_mom_throttle))
+
+        print(f"\nPID: {moment}")
+        print(f"ASMC: {moment_asmc}")
+        print(f"ASMC sv: {-np.multiply(self.Lam_q, sv_q)}")
+        print(f"ASMC delTau: {-np.array([0.1, 0.1, 0.1])*(delTau_q*Rho_q)}")
+        # self.torq_cmd = moment
+        self.torq_cmd = moment_asmc
+        
+        # self.torq_cmd[0] = moment[0]
+        # self.torq_cmd[1] = moment[1]
+        # self.torq_cmd[2] = moment[2]
 
     def torque_to_PWM(self, value):
         fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
@@ -427,7 +464,7 @@ def main(argv):
             # cnt.CA = np.linalg.pinv(cnt.EA)
             # cnt.CA_inv = np.linalg.pinv(cnt.CA)
             # cnt.CA_inv = np.round(cnt.CA_inv, 5)
-            if (time.time() - start_time > 4000):
+            if (time.time() - start_time > 40):
                 eff = 0.85
                 print(f"Motor efficiency down for M0: {eff}")
                 cnt.EA = [
