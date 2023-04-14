@@ -60,23 +60,29 @@ class Controller:
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
         self.sp.pose.position.y = 0.0
-        self.ALT_SP = 0.5
+        self.ALT_SP = 0.3
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
-        self.local_quat = np.array([0.0, 0.0, 0.0, 1.0])
+        self.local_quat = np.array([0.0, 0.0, 0.0, -1.0])
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
 
         self.errInt_q = np.zeros(3)
 
-        self.kPos = np.array([1.0, 1.0, 16.0])
+        # self.kPos = np.array([1.0, 1.0, 16.0])
+        # self.kVel = np.array([1.0, 1.0, 1.0])
+        # self.kInt = np.array([0.01, 0.01, 0.01])
+        self.kPos = np.array([0.1, 0.1, 0.1])
         self.kVel = np.array([1.0, 1.0, 1.0])
-        self.kInt = np.array([0.01, 0.01, 0.01])
+        self.kInt = np.array([0.0, 0.0, 0.0])
         # self.kInt = np.array([0.0, 0.0, 0.0])
 
-        self.kPos_q = np.array([4.0, 4.0, 1.0])
+        # self.kPos_q = np.array([4.0, 4.0, 1.0])
+        # self.kVel_q = np.array([1.0, 1.0, 1.0])
+        # self.kInt_q = np.array([0.01, 0.01, 0.01])
+        self.kPos_q = np.array([0.1, 0.1, 0.1])
         self.kVel_q = np.array([1.0, 1.0, 1.0])
-        self.kInt_q = np.array([0.01, 0.01, 0.01])
+        self.kInt_q = np.array([0.0, 0.0, 0.0])
         # self.kInt_q = np.array([0.0, 0.0, 0.0])
 
         self.start_pose = PoseStamped()
@@ -173,6 +179,9 @@ class Controller:
         self.cur_vel.twist.angular.y = msg.twist.twist.angular.y
         self.cur_vel.twist.angular.z = msg.twist.twist.angular.z
 
+        print(f"Cur_vel linear: {self.cur_vel.twist.linear}")
+        print(f"Cur_vel ang: {self.cur_vel.twist.angular}")
+
     def newPoseCB(self, msg):
         if(self.sp.pose.position != msg.pose.position):
             x = msg.pose.position.x
@@ -258,7 +267,7 @@ class Controller:
 
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
 
-        print(f"Euler err: {self.euler_err}")
+        # print(f"Euler err: {self.euler_err}")
 
         self.des_q_dot = np.array([0 ,0, 0])
         des_euler_rate =  np.dot(np.multiply(np.transpose(rot_des), rot_curr), 
@@ -269,7 +278,7 @@ class Controller:
                                     -self.cur_vel.twist.angular.z])
 
         self.euler_rate_err = curr_euler_rate - des_euler_rate
-        print(f"Euler err rate: {self.euler_rate_err}")
+        # print(f"Euler err rate: {self.euler_rate_err}")
 
         self.th_cmd = thrust
 
@@ -364,9 +373,31 @@ def main(argv):
 
     with DFAutopilot(connection_string=connection_string) as commander:
         if(DFFlag):
-            for i in range(1,4):
-                commander.set_motor_mode(i, 1)
-                cnt.armed = True
+            commander.set_motor_mode(1, 33)
+            time.sleep(1)
+            commander.set_motor_mode(1, 1)
+            time.sleep(1)
+            print("Motor mode set")
+            commander.set_motor_mode(2, 34)
+            time.sleep(1)
+            commander.set_motor_mode(2, 1)
+            time.sleep(1)
+            print("Motor mode set")
+            commander.set_motor_mode(3, 35)
+            time.sleep(1)
+            commander.set_motor_mode(3, 1)
+            time.sleep(1)
+            print("Motor mode set")
+            commander.set_motor_mode(4, 36)
+            time.sleep(1)
+            commander.set_motor_mode(4, 1)
+            time.sleep(1)
+            print("Motor mode set")
+            cnt.armed = True
+            # for i in range(1,4):
+            #     commander.set_motor_mode(i, 1)
+            #     print("Motor mode set")
+            #     cnt.armed = True
             DFFlag = False
         
         while not rospy.is_shutdown():
@@ -374,24 +405,27 @@ def main(argv):
             cnt.pub_att()
             Tp, Tq, Tr = cnt.torq_cmd
             T = cnt.th_cmd
-            Torq = [Tp, Tq, Tr, T]
+            # Torq = [Tp, Tq, Tr, T]
+            Torq = [0, 0, 0, T]
 
             # Compute CA matrix
             # cnt.CA = np.linalg.pinv(cnt.EA)
             # cnt.CA_inv = np.linalg.pinv(cnt.CA)
             # cnt.CA_inv = np.round(cnt.CA_inv, 5)
-            if (time.time() - start_time > 40):
-                eff = 0.85
-                print(f"Motor efficiency down for M0: {eff}")
-                cnt.EA = [
-                [-1*eff,1*eff,1*eff,1*eff],
-                [1,-1,1,1*eff],
-                [1,1,-1,1*eff],
-                [-1,-1,-1,1*eff],
-                ]
-                # cnt.kPos = np.array([1, 1, 4.0])
-                # cnt.kPos_q = np.array([3.0, 2.0, 0.1])
-                cnt.is_faulty = True
+            # if (time.time() - start_time > 30):
+            #     eff = 0.95
+            #     print(f"Motor efficiency down for M0: {eff}")
+            #     cnt.EA = [
+            #     [-1*eff,1*eff,1*eff,1*eff],
+            #     [1,-1,1,1*eff],
+            #     [1,1,-1,1*eff],
+            #     [-1,-1,-1,1*eff],
+            #     ]
+            #     # cnt.kPos = np.array([1, 1, 4.0])
+            #     # cnt.kPos_q = np.array([3.0, 2.0, 0.1])
+            #     cnt.is_faulty = True
+            if (time.time() - start_time > 10):
+                cnt.sp.pose.position.z = 0.25
             u_input = np.matmul(cnt.EA, Torq)
 
             # Convert motor torque (input u) to PWM
@@ -404,10 +438,10 @@ def main(argv):
 
             i=1
             for PWM in PWM_out_values:
-                # commander.set_servo(i, PWM)
+                commander.set_servo(i, PWM)
                 i = i+1
 
-            # print(f"Torq: {Torq}")
+            print(f"Torq: {Torq}")
             print(f"u inputs: {u_input}")
             # print(f"Sensor inputs: {roll, pitch, yaw, z}")
             print(f"PWM outputs: {PWM_out_values}\n")

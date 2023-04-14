@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 """
+ASMC:
+mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
+python3 sim_vehicle.py -v ArduCopter --vehicle=ArduCopter --frame=X
+roslaunch mavros apm.launch fcu_url:=udp://:14553
+"""
+"""
 1. mavproxy.py --master 127.0.0.1:14551 --out=udp:127.0.0.1:14552 --out=udp:127.0.0.1:14553 --out=udp:127.0.0.1:14554
-2. cd ~/df_ws/src/ardupilot_gazebo/worlds 
+2. cd ~/df_ws/src/ardupilot/Tools/autotest
+sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
+3. roslaunch mavros apm.launch fcu_url:=udp://:14553@
+4. cd ~/df_ws/src/ardupilot_gazebo/worlds 
 gazebo --verbose iris_ardupilot.world
-3. cd ~/df_ws/src/DroneForce/tests
-python3 test-26-trajectory-generator.py
-4. cd ~/df_ws/src/ardupilot/Tools/autotest
-python3 sim_vehicle.py -v ArduCopter -f gazebo-iris  -m --mav10
-5. roslaunch mavros apm.launch fcu_url:=udp://:14553@
-6. cd ~/df_ws/src/DroneForce/dist
-rosbag record -a
-7. cd ~/df_ws/src/DroneForce/tests
-python3 test-26-pid-hold.py
+5. cd ~/df_ws/src/DroneForce/tests
+python3 test-21-asmc-circle.py 
 """
 
 import sys
@@ -59,25 +61,13 @@ class Controller:
         self.cur_pose = PoseStamped()
         self.cur_vel = TwistStamped()
         self.sp.pose.position.x = 0.0
-        self.sp.pose.position.y = 0.0
-        self.ALT_SP = 0.5
+        self.sp.pose.position.y = 3.0
+        self.ALT_SP = 3.0
         self.sp.pose.position.z = self.ALT_SP
         self.local_pos = Point(0.0, 0.0, self.ALT_SP)
         self.local_quat = np.array([0.0, 0.0, 0.0, 1.0])
         self.desVel = np.zeros(3)
         self.errInt = np.zeros(3)
-
-        self.errInt_q = np.zeros(3)
-
-        self.kPos = np.array([1.0, 1.0, 16.0])
-        self.kVel = np.array([1.0, 1.0, 1.0])
-        self.kInt = np.array([0.01, 0.01, 0.01])
-        # self.kInt = np.array([0.0, 0.0, 0.0])
-
-        self.kPos_q = np.array([4.0, 4.0, 1.0])
-        self.kVel_q = np.array([1.0, 1.0, 1.0])
-        self.kInt_q = np.array([0.01, 0.01, 0.01])
-        # self.kInt_q = np.array([0.0, 0.0, 0.0])
 
         self.start_pose = PoseStamped()
         self.start_pose.pose.position.x = 0.0
@@ -88,17 +78,51 @@ class Controller:
         self.torq_cmd = np.array([0, 0, 0])
         self.th_cmd = np.array([0, 0, 0])
 
+        self.Kp0_ = 0.1
+        self.Kp1_ = 0.1
+        self.alpha_0_ = 10.0
+        self.alpha_1_ = 10.0
+
+        # Tuning for outer
+        self.Lam = np.array([0.95, 0.95, 5.0])
+        self.Phi = np.array([1.0, 1.0, 1.1])   #1.0 - 1.5
+        
+        self.M = 0.5
+        self.alpha_m = 0.01  # 0.01 - 0.05
+        # Close Tuning for outer
+
         self.norm_thrust_const = 0.06
         self.max_th = 18.0
         self.max_throttle = 0.95
+
+        self.Kp0_q_ = 0.1
+        self.Kp1_q_ = 0.1
+        self.Kp2_q_ = 0.1
+        self.alpha_0_q_ = 1
+        self.alpha_1_q_ = 1
+        self.alpha_2_q_ = 1
+
+        # Tuning for inner
+        # self.Lam_q = np.array([0.21, 0.15, 0.08])
+        self.Lam_q = np.array([2.0, 2.0, 2.0])
+        self.Phi_q = np.array([1.5, 1.5, 1.5])   #1.0 - 1.5
+        # Close Tuning for inner
 
         self.norm_moment_const = 0.05
         self.max_mom = 10
         # self.max_mom_throttle = 0.33
         self.max_mom_throttle = 0.5
 
-        self.v = 0.1
-        
+        self.v = 1.0
+        self.v_q = 1.0
+        self.epsilon = 0.001
+        self.epsilon_q = 0.01
+
+        self.kPos_q = np.array([4.0, 4.0, 1.0])
+        self.kVel_q = np.array([1.0, 1.0, 1.0])
+        self.kInt_q = np.array([0.01, 0.01, 0.01])
+        self.errInt_q = np.zeros(3)
+
         self.gravity = np.array([0, 0, 9.8])
         self.pre_time1 = rospy.get_time()   
         self.pre_time2 =  rospy.get_time() 
@@ -112,37 +136,17 @@ class Controller:
                 [1,1,-1,1],
                 [-1,-1,-1,1],
             ]
-        # self.EA = [
-        #         [-1,1,0.325,1],
-        #         [1,-1,0.325,1],
-        #         [1,1,-0.325,1],
-        #         [-1,-1,-0.325,1],
-        #     ]
-        self.is_faulty = False
 
     def multiDoFCb(self, msg):
-        # print(f"multiDoFCb: {msg}")
         pt = msg.points[0]
-
-        x = pt.transforms[0].translation.x
-        y = pt.transforms[0].translation.y
-        z = pt.transforms[0].translation.z
-        # print(f"New pose received: {x, y, z}")
-
         self.sp.pose.position.x = pt.transforms[0].translation.x
         self.sp.pose.position.y = pt.transforms[0].translation.y
         self.sp.pose.position.z = pt.transforms[0].translation.z
         self.desVel = np.array([pt.velocities[0].linear.x, pt.velocities[0].linear.y, pt.velocities[0].linear.z])
         # self.desVel = np.array([pt.accelerations[0].linear.x, pt.accelerations[0].linear.y, pt.accelerations[0].linear.z])
 
-    def multiDoFCbNew(self, pos, vel):
-        self.sp = pos
-        self.desVel = vel
-        # self.desVel = np.array([pt.velocities[0].linear.x, pt.velocities[0].linear.y, pt.velocities[0].linear.z])
-
     ## local position callback
     def posCb(self, msg):
-        # print(f"VPos: {msg}")
         self.local_pos.x = msg.pose.position.x
         self.local_pos.y = msg.pose.position.y
         self.local_pos.z = msg.pose.position.z
@@ -174,11 +178,11 @@ class Controller:
         self.cur_vel.twist.angular.z = msg.twist.twist.angular.z
 
     def newPoseCB(self, msg):
-        if(self.sp.pose.position != msg.pose.position):
-            x = msg.pose.position.x
-            y = msg.pose.position.y
-            z = msg.pose.position.z
-            # print(f"New pose received: {x, y, z}")
+        # if(self.sp.pose.position != msg.pose.position):
+        #     x = msg.pose.position.x
+        #     y = msg.pose.position.y
+        #     z = msg.pose.position.z
+        #     print(f"New pose received: {x, y, z}")
         self.sp.pose.position.x = msg.pose.position.x
         self.sp.pose.position.y = msg.pose.position.y
         self.sp.pose.position.z = msg.pose.position.z
@@ -200,8 +204,8 @@ class Controller:
     def th_des(self):
         dt = rospy.get_time() - self.pre_time1
         self.pre_time1 = self.pre_time1 + dt
-        if dt > 0.04:
-            dt = 0.04
+        if dt > 0.02:
+            dt = 0.02
 
         curPos = self.vector2Arrays(self.cur_pose.pose.position)
         desPos = self.vector2Arrays(self.sp.pose.position)
@@ -209,15 +213,54 @@ class Controller:
 
         errPos = curPos - desPos
         errVel = curVel - self.desVel
-        self.errInt += errPos*dt
 
-        des_th = np.multiply(self.kPos, errPos) + np.multiply(self.kVel,errVel) + np.multiply(self.kInt, self.errInt)
+        # test_array2= np.array([1, -1, 1])
 
+        # test_array= np.array([0.05, 0.05, 1.0])
+        sv = errVel + np.multiply(self.Phi, errPos)
+        # sv =  np.multiply(sv, test_array)
+        zi = np.concatenate([errPos, errVel])
+        zi_norm = np.linalg.norm(zi)
+        sv_norm = np.linalg.norm(sv)
+
+        if zi_norm > 5:
+            zi_norm = 5
+
+        if self.armed:
+            self.Kp0_ += (sv_norm - (self.alpha_0_*self.Kp0_))*dt
+            self.Kp1_ += (sv_norm*zi_norm - (self.alpha_1_*self.Kp1_))*dt
+            self.Kp0_ = np.maximum(self.Kp0_, 0.0001)
+            self.Kp1_ = np.maximum(self.Kp1_, 0.0001)
+            self.M += (-sv[2] - self.alpha_m*self.M)*dt
+            self.M = np.maximum(self.M, 0.1)
+
+        Rho = self.Kp0_ + self.Kp1_*zi_norm 
+
+        delTau = np.zeros(3)
+        # delTau[0] = self.sigmoid(sv[0],self.v)
+        # delTau[1] = self.sigmoid(sv[1],self.v)
+        # delTau[2] = self.sigmoid(sv[2],self.v)
+        if(sv_norm >= self.epsilon):
+            delTau = np.multiply(Rho, sv)/sv_norm
+        if(sv_norm < self.epsilon):
+            delTau = np.multiply(Rho, sv)/self.epsilon
+
+        des_th = -np.multiply(self.Lam, sv) - np.array([0.1, 0.1, 0.1])*(delTau*Rho) + self.M*self.gravity
+        # print(" term 1" ,-np.multiply(self.Lam, sv))
+        # print(" term 2" ,-delTau*Rho)
+
+        # putting limit on maximum thrust vector
         if np.linalg.norm(des_th) > self.max_th:
             des_th = (self.max_th/np.linalg.norm(des_th))*des_th
-    
+
+        # print(f"Current Pose: {curPos}")
+        # print(f"Des Pose: {desPos}")
+        # print(f"Mult: {np.multiply(self.Lam, sv)}")
+        # print(f"delTau: {delTau}")
         print(f"Err Pose: {errPos}")
-        return (-des_th + self.gravity)
+        # print(f"Thrust cmd: {self.df_cmd.data}")
+    
+        return des_th
 
     def acc2quat(self, des_th, des_yaw):
         proj_xb_des = np.array([np.cos(des_yaw), np.sin(des_yaw), 0.0])
@@ -255,10 +298,7 @@ class Controller:
         pitch_y_err = -angle_error_matrix[0,2]   
         yaw_z_err = angle_error_matrix[0,1]
 
-
         self.euler_err = np.array([roll_x_err, pitch_y_err, yaw_z_err])
-
-        print(f"Euler err: {self.euler_err}")
 
         self.des_q_dot = np.array([0 ,0, 0])
         des_euler_rate =  np.dot(np.multiply(np.transpose(rot_des), rot_curr), 
@@ -269,7 +309,6 @@ class Controller:
                                     -self.cur_vel.twist.angular.z])
 
         self.euler_rate_err = curr_euler_rate - des_euler_rate
-        print(f"Euler err rate: {self.euler_rate_err}")
 
         self.th_cmd = thrust
 
@@ -281,9 +320,41 @@ class Controller:
         if dt > 0.04:
             dt = 0.04
 
-        self.errInt_q += self.euler_err*dt
+        # print(f"Euler err: {self.euler_err}")
+        sv_q = self.euler_rate_err + np.multiply(self.Phi_q, self.euler_err)
+        # sv =  np.multiply(sv, test_array)
+        zi_q = np.concatenate([self.euler_err, self.euler_rate_err])
+        zi_norm_q = np.linalg.norm(zi_q)
+        sv_norm_q = np.linalg.norm(sv_q)
 
+        if zi_norm_q > 5:
+            zi_norm_q = 5
+
+        if self.armed:
+            self.Kp0_q_ += (sv_norm_q - (self.alpha_0_q_*self.Kp0_q_))*dt
+            self.Kp1_q_ += (sv_norm_q*zi_norm_q - (self.alpha_1_q_*self.Kp1_q_))*dt
+            self.Kp2_q_ += (sv_norm_q*np.power(zi_norm_q, 2) - (self.alpha_2_q_*self.Kp2_q_))*dt
+            self.Kp0_q_ = np.maximum(self.Kp0_q_, 0.0001)
+            self.Kp1_q_ = np.maximum(self.Kp1_q_, 0.0001)
+            self.Kp2_q_ = np.maximum(self.Kp2_q_, 0.0001)
+            self.M += (-sv_q[2] - self.alpha_m*self.M)*dt
+            self.M = np.maximum(self.M, 0.1)
+
+        Rho_q = self.Kp0_q_ + self.Kp1_q_*zi_norm_q + self.Kp2_q_*zi_norm_q 
+
+        delTau_q = np.zeros(3)
+        # delTau_q[0] = self.sigmoid(sv_q[0],self.v_q)
+        # delTau_q[1] = self.sigmoid(sv_q[1],self.v_q)
+        # delTau_q[2] = self.sigmoid(sv_q[2],self.v_q)
+        if(sv_norm_q >= self.epsilon_q):
+            delTau_q = np.multiply(Rho_q, sv_q)/sv_norm_q
+        if(sv_norm_q < self.epsilon_q):
+            delTau_q = np.multiply(Rho_q, sv_q)/self.epsilon_q
+
+        # PID inner
+        self.errInt_q += self.euler_err*dt
         des_mom = -(self.kPos_q*self.euler_err) - (self.kVel_q*self.euler_rate_err) - (self.kInt_q*self.errInt_q)
+        # End PID inner
 
         # putting limit on maximum vector
         if np.linalg.norm(des_mom) > self.max_mom:
@@ -292,8 +363,29 @@ class Controller:
         des_mom = self.norm_moment_const * des_mom
 
         moment = np.maximum(-self.max_mom_throttle, np.minimum(des_mom, self.max_mom_throttle))
-        self.torq_cmd = moment
+
+        des_mom_asmc = - np.multiply(self.Lam_q, sv_q) - np.array([0.1, 0.1, 0.1])*(delTau_q*Rho_q)
+        # des_mom_asmc = - np.array([1, 1, 1])*(delTau_q*Rho_q)
+        # des_mom_asmc = - np.multiply(self.Lam_q, sv_q)
+        # putting limit on maximum vector
+
+        if np.linalg.norm(des_mom_asmc) > self.max_mom:
+            des_mom_asmc = (self.max_mom/np.linalg.norm(des_mom_asmc))*des_mom_asmc
+
+        des_mom_asmc = self.norm_moment_const * des_mom_asmc
+
+        moment_asmc = np.maximum(-self.max_mom_throttle, np.minimum(des_mom_asmc, self.max_mom_throttle))
+
+        # print(f"\nPID: {moment}")
+        # print(f"ASMC: {moment_asmc}")
+        # print(f"ASMC sv: {-np.multiply(self.Lam_q, sv_q)}")
+        # print(f"ASMC delTau: {-np.array([0.1, 0.1, 0.1])*(delTau_q*Rho_q)}")
+        # self.torq_cmd = moment
+        self.torq_cmd = moment_asmc
         
+        # self.torq_cmd[0] = moment[0]
+        # self.torq_cmd[1] = moment[1]
+        # self.torq_cmd[2] = moment[2]
 
     def torque_to_PWM(self, value):
         fromMin, fromMax, toMin, toMax = -2, 2, 1000, 2000
@@ -312,30 +404,22 @@ class Controller:
     def pub_att(self):
         self.moment_des()
 
-    def fault_sub(self, fault):
-        self.is_faulty = fault
-
 
 # Main function
 def main(argv):
     rospy.init_node('setpoint_node', anonymous=True)
     cnt = Controller()  # controller object
-    rate = rospy.Rate(15)
+    rate = rospy.Rate(30)
     rospy.Subscriber('mavros/state', State, cnt.stateCb)
     rospy.Subscriber('mavros/local_position/odom', Odometry, cnt.odomCb)
-    # rospy.Subscriber('mavros/vision_pose/pose', Odometry, cnt.odomCb)
 
     # Subscribe to drone's local position
-    # rospy.Subscriber('mavros/vision_pose/pose', PoseStamped, cnt.posCb)
     rospy.Subscriber('mavros/local_position/pose', PoseStamped, cnt.posCb)
     rospy.Subscriber('new_pose', PoseStamped, cnt.newPoseCB)
     rospy.Subscriber('command/trajectory', Mdjt, cnt.multiDoFCb)
     sp_pub = rospy.Publisher('mavros/setpoint_position/local', PoseStamped, queue_size=10)
     des_pub = rospy.Publisher('desired_position', PoseStamped, queue_size=10)
-    
-    # fault_pub = rospy.Publisher('fault', Bool, queue_size=10)
-    rospy.Subscriber('fault', Bool, cnt.fault_sub)
-
+    fault_pub = rospy.Publisher('fault', Bool, queue_size=10)
     rate.sleep()
 
     print("ARMING")
@@ -348,7 +432,7 @@ def main(argv):
     k=0
     while k<20:
         sp_pub.publish(cnt.sp)
-        # fault_pub.publish(False)
+        fault_pub.publish(False)
         rate.sleep()
         k = k + 1
 
@@ -381,7 +465,8 @@ def main(argv):
             # cnt.CA_inv = np.linalg.pinv(cnt.CA)
             # cnt.CA_inv = np.round(cnt.CA_inv, 5)
             if (time.time() - start_time > 40):
-                eff = 0.85
+                eff = 0.45
+                # eff = 1.0
                 print(f"Motor efficiency down for M0: {eff}")
                 cnt.EA = [
                 [-1*eff,1*eff,1*eff,1*eff],
@@ -404,13 +489,13 @@ def main(argv):
 
             i=1
             for PWM in PWM_out_values:
-                # commander.set_servo(i, PWM)
+                commander.set_servo(i, PWM)
                 i = i+1
 
             # print(f"Torq: {Torq}")
-            print(f"u inputs: {u_input}")
+            # print(f"u inputs: {u_input}")
             # print(f"Sensor inputs: {roll, pitch, yaw, z}")
-            print(f"PWM outputs: {PWM_out_values}\n")
+            # print(f"PWM outputs: {PWM_out_values}\n")
             rate.sleep()
 
 if __name__ == '__main__':
