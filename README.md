@@ -1,10 +1,10 @@
 # DroneForce
 > Interface to write your custom control logic, for ArduPilot and PX4 (coming soon) autopilot systems.
 
-[![GitHub license](https://img.shields.io/github/license/Embedded-Fault-Tolerant-Control/DroneForce-internal)](https://github.com/Embedded-Fault-Tolerant-Control/DroneForce-internal/blob/master/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/Embedded-Fault-Tolerant-Control/DroneForce-internal)](https://github.com/Embedded-Fault-Tolerant-Control/DroneForce-internal/issues)
-[![GitHub forks](https://img.shields.io/github/forks/Embedded-Fault-Tolerant-Control/DroneForce-internal)](https://github.com/Embedded-Fault-Tolerant-Control/DroneForce-internal/network)
-[![GitHub stars](https://img.shields.io/github/stars/Embedded-Fault-Tolerant-Control/DroneForce-internal)](https://github.com/Embedded-Fault-Tolerant-Control/DroneForce-internal/stargazers)
+[![GitHub license](https://img.shields.io/github/license/AdityaMulgundkar/DroneForce)](https://github.com/AdityaMulgundkar/DroneForce/blob/master/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/AdityaMulgundkar/DroneForce)](https://github.com/AdityaMulgundkar/DroneForce/issues)
+[![GitHub forks](https://img.shields.io/github/forks/AdityaMulgundkar/DroneForce)](https://github.com/AdityaMulgundkar/DroneForce/network)
+[![GitHub stars](https://img.shields.io/github/stars/AdityaMulgundkar/DroneForce)](https://github.com/AdityaMulgundkar/DroneForce/stargazers)
 
 DroneForce lets you:
 - Control individual motor PWM outputs
@@ -15,7 +15,7 @@ The framework is designed with ArduPilot in mind, and is currently being extende
 
 ## Requirements
 
-To build and run DroneForce-internal, you'll need:
+To build and run DroneForce, you'll need:
 
 - A compatible drone platform
 - A supported embedded system (e.g., Raspberry Pi, Arduino, STM32)
